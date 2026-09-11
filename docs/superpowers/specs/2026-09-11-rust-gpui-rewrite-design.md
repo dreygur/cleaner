@@ -69,7 +69,8 @@ tooling and `go build` at the repo root never touches Rust tooling.
 
 ```toml
 [dependencies]
-gpui-kit = "0.6"
+gpui = { git = "https://github.com/zed-industries/zed", package = "gpui" }
+gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 thiserror = "2"
 rayon = "1"
 dirs = "5"
@@ -78,13 +79,10 @@ dirs = "5"
 tempfile = "3"
 ```
 
-`gpui-kit` re-exports `gpui`, `gpui-component`, and `gpui-base` behind one
-version-pinned crate on crates.io, instead of pinning two separate git
-dependencies against a moving `main` branch. It satisfies "gpui and
-gpui-component" without hand-tracking two upstream revs. If you'd rather
-depend on `gpui` and `gpui-component` directly (git deps, more moving parts,
-matches the ask literally) say so and the spec flips before the plan is
-written.
+Both are git dependencies with no crates.io release; pin each to a specific
+commit (not `branch = "main"`) once `gui/` exists, so a fresh `cargo build`
+doesn't silently pick up an unrelated upstream change. Bumping the pin later
+is a one-line `Cargo.toml` edit, done deliberately.
 
 `rayon` replaces the Go version's hand-rolled semaphore + goroutine pool for
 `measure()`: `paths.par_iter().map(dir_size)` gets the same bounded
@@ -208,9 +206,10 @@ implementation-time call, not a design one.
   1000, 1 GB, etc).
 - UI views are not unit-tested; verified by running the app.
 
-## Open questions
+## Settings persistence
 
-- Settings persistence: where does the roots/enabled-rules draft get saved
-  between launches (a JSON file under `~/Library/Application Support`, or
-  nothing persisted in v1 and it resets to defaults every launch)? Pick one
-  before or during the plan.
+Not persisted in v1. `AppState.roots` and `AppState.rule_enabled` are seeded
+from `config::DEFAULT_SEARCH_ROOTS` and "all on except trash" on every
+launch; a Settings edit lives only for the running session. No file, no
+`Application Support` directory, nothing to migrate later if a persisted
+format gets added.
