@@ -702,12 +702,6 @@ use std::path::{Path, PathBuf};
 
 use crate::types::{Kind, Rule};
 
-pub fn dir_size(root: &Path) -> u64 {
-    let mut total = 0u64;
-    walk_files(root, &mut total);
-    total
-}
-
 fn walk_files(dir: &Path, total: &mut u64) {
     let Ok(entries) = fs::read_dir(dir) else { return };
     for entry in entries.flatten() {
@@ -718,6 +712,12 @@ fn walk_files(dir: &Path, total: &mut u64) {
             *total += metadata.len();
         }
     }
+}
+
+pub fn dir_size(root: &Path) -> u64 {
+    let mut total = 0u64;
+    walk_files(root, &mut total);
+    total
 }
 
 pub fn has_marker(dir: &Path, marker: &str) -> bool {
