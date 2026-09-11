@@ -72,6 +72,35 @@ pub fn collect(rule: &Rule) -> Vec<PathBuf> {
     }
 }
 
+use rayon::prelude::*;
+
+use crate::types::{Group, Target};
+
+pub fn measure(paths: Vec<PathBuf>) -> Vec<Target> {
+    paths
+        .into_par_iter()
+        .map(|path| {
+            let size = dir_size(&path);
+            Target { path, size }
+        })
+        .collect()
+}
+
+pub fn scan(rules: &[Rule]) -> Vec<Group> {
+    rules
+        .iter()
+        .filter_map(|rule| {
+            let paths = collect(rule);
+            if paths.is_empty() {
+                return None;
+            }
+            let targets = measure(paths);
+            let size = targets.iter().map(|t| t.size).sum();
+            Some(Group { rule: rule.clone(), targets, size })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,5 +184,46 @@ mod tests {
         };
 
         assert_eq!(collect(&rule), vec![with_marker.join("target")]);
+    }
+
+    #[test]
+    fn measure_preserves_input_order_and_reports_real_sizes() {
+        let root = tempdir().unwrap();
+        let a = root.path().join("a");
+        let b = root.path().join("b");
+        fs::create_dir(&a).unwrap();
+        fs::create_dir(&b).unwrap();
+        fs::write(a.join("f"), vec![0u8; 10]).unwrap();
+        fs::write(b.join("f"), vec![0u8; 20]).unwrap();
+
+        let targets = measure(vec![a.clone(), b.clone()]);
+        assert_eq!(targets[0].path, a);
+        assert_eq!(targets[0].size, 10);
+        assert_eq!(targets[1].path, b);
+        assert_eq!(targets[1].size, 20);
+    }
+
+    #[test]
+    fn scan_drops_rules_that_matched_nothing() {
+        let root = tempdir().unwrap();
+        let matching_dir = root.path().join("present");
+        fs::create_dir(&matching_dir).unwrap();
+        fs::write(matching_dir.join("f"), vec![0u8; 5]).unwrap();
+
+        let matching = crate::types::Rule {
+            id: "matches", description: "t", kind: crate::types::Kind::Fixed,
+            dir: "", marker: "", roots: vec![],
+            paths: vec![matching_dir], regen: "t",
+        };
+        let empty = crate::types::Rule {
+            id: "empty", description: "t", kind: crate::types::Kind::Fixed,
+            dir: "", marker: "", roots: vec![],
+            paths: vec![root.path().join("does-not-exist")], regen: "t",
+        };
+
+        let groups = scan(&[matching, empty]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].rule.id, "matches");
+        assert_eq!(groups[0].size, 5);
     }
 }
