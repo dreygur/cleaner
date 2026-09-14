@@ -1,5 +1,5 @@
 use gpui::{div, prelude::*, px, Context};
-use gpui_component::{button::Button, button::ButtonVariants, checkbox::Checkbox, ActiveTheme};
+use gpui_component::{button::Button, button::ButtonVariants, checkbox::Checkbox, ActiveTheme, Disableable};
 
 use super::chrome::{section_head, title_bar};
 use super::root::RootView;
@@ -170,12 +170,13 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
     let theme = cx.theme();
     let background = theme.background;
     let border_color = theme.border;
-    let foreground = theme.foreground;
     let muted_foreground = theme.muted_foreground;
     let muted = theme.muted;
     let warning = theme.warning;
     let warning_bg = theme.warning.alpha(0.12);
+    let primary = theme.primary;
     let mono_font = theme.mono_font_family.clone();
+    let scanning = state.scanning;
 
     div()
         .flex()
@@ -221,8 +222,8 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
                             div()
                                 .font_family(mono_font.clone())
                                 .text_size(px(27.))
-                                .font_weight(gpui::FontWeight::BOLD)
-                                .text_color(foreground)
+                                .font_weight(gpui::FontWeight(650.0))
+                                .text_color(primary)
                                 .child(human_bytes(total_size(state))),
                         )
                         .child(
@@ -233,8 +234,11 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
                                 .child(format!("across {} rule groups · scanned {}", state.groups.len(), roots_line)),
                         ),
                 )
-                .child(Button::new("rescan").outline().label("Rescan").flex_shrink_0().on_click(cx.listener(
+                .child(Button::new("rescan").outline().label(if scanning { "Scanning…" } else { "Rescan" }).flex_shrink_0().disabled(scanning).on_click(cx.listener(
                     |view, _event, _window, cx| {
+                        if view.state.scanning {
+                            return;
+                        }
                         view.state.scanning = true;
                         cx.notify();
 
@@ -279,13 +283,19 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
                 .border_color(border_color)
                 .child(
                     div()
+                        .flex()
+                        .flex_row()
+                        .items_baseline()
+                        .gap_1()
                         .text_size(px(12.))
                         .text_color(muted_foreground)
-                        .child(format!(
-                            "{count} of {} groups selected · {}",
-                            state.groups.len(),
-                            human_bytes(selected_bytes)
-                        )),
+                        .child(format!("{count} of {} groups selected ·", state.groups.len()))
+                        .child(
+                            div()
+                                .font_family(mono_font.clone())
+                                .font_weight(gpui::FontWeight::BOLD)
+                                .child(human_bytes(selected_bytes)),
+                        ),
                 )
                 .child(Button::new("clean-selected").primary().label("Clean Selected...").on_click(cx.listener(
                     |view, _event, _window, cx| {

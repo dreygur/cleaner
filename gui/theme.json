@@ -1,0 +1,51 @@
+{
+  "name": "Cleaner",
+  "author": "Cleaner",
+  "themes": [
+    {
+      "name": "Cleaner Dark",
+      "mode": "dark",
+      "radius": 4,
+      "radius.lg": 8,
+      "mono_font.family": "JetBrains Mono",
+      "colors": {
+        "primary.background": "#FF5A1F",
+        "primary.hover.background": "#FF7A45",
+        "primary.active.background": "#E14E17",
+        "primary.foreground": "#0A0A0C",
+
+        "ring": "#FF5A1F",
+        "selection.background": "#FF5A1F55",
+        "progress.bar.background": "#FF5A1F",
+        "caret": "#FF5A1F",
+
+        "accent.background": "#1B1B1F",
+        "accent.foreground": "#FAFAFA",
+
+        "button.background": "#141417",
+        "button.hover.background": "#1D1D21",
+        "button.active.background": "#232327",
+        "button.foreground": "#F5F5F7",
+
+        "danger.background": "#F0453A",
+        "danger.active.background": "#C93327",
+        "danger.foreground": "#FFF1F0",
+        "danger.hover.background": "#FF5A4D",
+
+        "muted.foreground": "#8C8C94",
+        "border": "#232327",
+        "input.border": "#2A2A2F",
+
+        "title_bar.background": "#0D0D0F",
+        "title_bar.border": "#232327",
+        "overlay": "#000000AA",
+
+        "list.active.background": "#FF5A1F22",
+        "list.active.border": "#FF5A1F",
+
+        "scrollbar.thumb.background": "#3A3A40CC",
+        "scrollbar.thumb.hover.background": "#4A4A52"
+      }
+    }
+  ]
+}

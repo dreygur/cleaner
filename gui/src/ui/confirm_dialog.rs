@@ -107,7 +107,7 @@ pub fn render_confirm(state: &AppState, cx: &mut Context<RootView>) -> impl Into
                         .child(
                             div()
                                 .font_family(theme.mono_font_family.clone())
-                                .text_color(theme.foreground)
+                                .text_color(theme.primary)
                                 .child(human_bytes(total)),
                         ),
                 )

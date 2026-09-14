@@ -30,5 +30,7 @@ pub fn section_head(label: impl Into<gpui::SharedString>, cx: &App) -> impl Into
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .text_color(theme.muted_foreground)
         .bg(theme.muted)
-        .child(label.into())
+        .border_b_1()
+        .border_color(theme.border)
+        .child(label.into().to_uppercase())
 }
