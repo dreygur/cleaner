@@ -74,26 +74,38 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
                         .child(div().text_size(gpui::px(27.)).child(human_bytes(total_size(state))))
                         .child(div().text_size(gpui::px(11.)).child("reclaimable")),
                 )
-                .child(Button::new("rescan").label("Rescan").on_click(cx.listener(
-                    |view, _event, _window, cx| {
-                        view.state.scanning = true;
-                        cx.notify();
-
-                        let snapshot = view.state.rescan_inputs();
-                        cx.spawn(async move |view, cx| {
-                            let groups = cx
-                                .background_spawn(async move { snapshot.run() })
-                                .await;
-                            view.update(cx, |view, cx| {
-                                view.state.groups = groups;
-                                view.state.scanning = false;
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .gap_2()
+                        .child(Button::new("open-settings").label("Settings").on_click(cx.listener(
+                            |view, _event, _window, cx| {
+                                view.state.view = super::state::View::Settings;
                                 cx.notify();
-                            })
-                            .ok();
-                        })
-                        .detach();
-                    },
-                ))),
+                            },
+                        )))
+                        .child(Button::new("rescan").label("Rescan").on_click(cx.listener(
+                            |view, _event, _window, cx| {
+                                view.state.scanning = true;
+                                cx.notify();
+
+                                let snapshot = view.state.rescan_inputs();
+                                cx.spawn(async move |view, cx| {
+                                    let groups = cx
+                                        .background_spawn(async move { snapshot.run() })
+                                        .await;
+                                    view.update(cx, |view, cx| {
+                                        view.state.groups = groups;
+                                        view.state.scanning = false;
+                                        cx.notify();
+                                    })
+                                    .ok();
+                                })
+                                .detach();
+                            },
+                        ))),
+                ),
         )
         .child(
             div()

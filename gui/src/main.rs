@@ -24,7 +24,7 @@ fn main() {
                 ..Default::default()
             },
             |window, cx| {
-                let view = cx.new(|_| ui::root::RootView::new());
+                let view = cx.new(|cx| ui::root::RootView::new(window, cx));
                 cx.new(|cx| gpui_component::Root::new(view, window, cx))
             },
         )

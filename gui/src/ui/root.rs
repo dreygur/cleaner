@@ -1,14 +1,30 @@
-use gpui::{div, IntoElement, ParentElement, Render};
+use gpui::{div, AppContext as _, Entity, IntoElement, ParentElement, Render, Subscription};
+use gpui_component::input::{InputEvent, InputState};
 
 use super::state::AppState;
 
 pub struct RootView {
     pub state: AppState,
+    pub new_root_input: Entity<InputState>,
+    _new_root_input_sub: Subscription,
 }
 
 impl RootView {
-    pub fn new() -> Self {
-        Self { state: AppState::new() }
+    pub fn new(window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> Self {
+        let new_root_input = cx.new(|cx| {
+            InputState::new(window, cx).placeholder("Add a search root, e.g. ~/Downloads")
+        });
+        let _new_root_input_sub = cx.subscribe(&new_root_input, |view, input, event: &InputEvent, cx| {
+            if let InputEvent::Change = event {
+                view.state.new_root_input = input.read(cx).value().to_string();
+            }
+        });
+
+        Self {
+            state: AppState::new(),
+            new_root_input,
+            _new_root_input_sub,
+        }
     }
 }
 
@@ -16,7 +32,9 @@ impl Render for RootView {
     fn render(&mut self, _window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
         match self.state.view {
             super::state::View::Main => super::main_view::render_main(&self.state, cx).into_any_element(),
-            super::state::View::Settings => div().child("settings").into_any_element(),
+            super::state::View::Settings => {
+                super::settings_view::render_settings(&self.state, &self.new_root_input, cx).into_any_element()
+            }
             super::state::View::ConfirmDelete => div().child("confirm").into_any_element(),
         }
     }

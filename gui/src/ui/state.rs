@@ -18,12 +18,15 @@ pub struct AppState {
     pub selected: HashSet<&'static str>,
     pub roots: Vec<PathBuf>,
     pub rule_enabled: HashMap<&'static str, bool>,
+    pub draft_roots: Vec<PathBuf>,
+    pub draft_rule_enabled: HashMap<&'static str, bool>,
+    pub new_root_input: String,
 }
 
 impl AppState {
     pub fn new() -> Self {
         let home = dirs::home_dir().expect("no home directory");
-        let roots = DEFAULT_SEARCH_ROOTS.iter().map(|r| home.join(r)).collect();
+        let roots: Vec<PathBuf> = DEFAULT_SEARCH_ROOTS.iter().map(|r| home.join(r)).collect();
 
         let mut rule_enabled = HashMap::new();
         let rules = crate::config::rules(&home, &[]);
@@ -37,6 +40,9 @@ impl AppState {
             .map(|r| r.id)
             .collect();
 
+        let draft_roots = roots.clone();
+        let draft_rule_enabled = rule_enabled.clone();
+
         Self {
             view: View::Main,
             scanning: false,
@@ -44,6 +50,9 @@ impl AppState {
             selected,
             roots,
             rule_enabled,
+            draft_roots,
+            draft_rule_enabled,
+            new_root_input: String::new(),
         }
     }
 
