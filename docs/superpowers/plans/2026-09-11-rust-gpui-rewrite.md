@@ -994,6 +994,14 @@ mod tests {
         fs::create_dir_all(&target).unwrap();
         assert!(validate(home.path(), &target).is_ok());
     }
+
+    #[test]
+    fn nested_path_under_a_protected_name_is_accepted() {
+        let home = tempdir().unwrap();
+        let cache = home.path().join("Library").join("Caches").join("go-build");
+        fs::create_dir_all(&cache).unwrap();
+        assert!(validate(home.path(), &cache).is_ok());
+    }
 }
 ```
 
@@ -1025,9 +1033,8 @@ pub fn validate(home: &Path, path: &Path) -> Result<()> {
     if rel.as_os_str().is_empty() {
         return Err(AppError::OutsideHome(path.display().to_string()));
     }
-    if let Some(first) = rel.components().next() {
-        let name = first.as_os_str().to_string_lossy();
-        if PROTECTED_NAMES.contains(&name.as_ref()) {
+    if let Some(name) = rel.to_str() {
+        if PROTECTED_NAMES.contains(&name) {
             return Err(AppError::ProtectedPath(path.display().to_string()));
         }
     }
@@ -1043,12 +1050,21 @@ pub fn validate(home: &Path, path: &Path) -> Result<()> {
 }
 ```
 
-This inherits the Go version's one limitation along with its guards: paths
-are compared lexically, not canonicalized, so a `..` component could in
-principle defeat `strip_prefix`. Every path this function actually sees
-comes from `scan::collect` or `config::rules`, both of which build paths
-with `Path::join` and never emit `..`, so the limitation is inherited, not
-introduced.
+The protected-name check compares the whole relative path as a string, not
+just its first segment: it rejects `home/Library` itself, but not
+`home/Library/Caches/go-build` — matching the Go original
+(`internal/clean/cleaner.go:46`, `protectedNames[rel]`, a map lookup on the
+full `rel` string). Seven of the thirteen rules live under `~/Library`
+(`go-build`, `pnpm-store`, `brew-cache`, `pip-cache`, `js-tool-cache`,
+`chrome-cache`, `xcode-derived`); a first-segment-only check would reject
+all of them.
+
+This inherits the Go version's one remaining limitation along with its
+guards: paths are compared lexically, not canonicalized, so a `..`
+component could in principle defeat `strip_prefix`. Every path this
+function actually sees comes from `scan::collect` or `config::rules`, both
+of which build paths with `Path::join` and never emit `..`, so the
+limitation is inherited, not introduced.
 
 - [ ] **Step 4: Add the module and run the tests**
 
@@ -1058,7 +1074,7 @@ mod clean;
 ```
 
 Run: `cd gui && cargo test clean::`
-Expected: PASS, 7 tests
+Expected: PASS, 8 tests
 
 - [ ] **Step 5: Commit**
 
@@ -1224,7 +1240,7 @@ pub fn clean_group(home: &Path, group: &Group) -> (u64, Vec<AppError>) {
 - [ ] **Step 4: Run the tests**
 
 Run: `cd gui && cargo test clean::`
-Expected: PASS, 11 tests
+Expected: PASS, 12 tests
 
 - [ ] **Step 5: Run the full domain-layer suite**
 
