@@ -26,15 +26,22 @@ impl AppState {
         let roots = DEFAULT_SEARCH_ROOTS.iter().map(|r| home.join(r)).collect();
 
         let mut rule_enabled = HashMap::new();
-        for rule in crate::config::rules(&home, &[]) {
+        let rules = crate::config::rules(&home, &[]);
+        for rule in &rules {
             rule_enabled.insert(rule.id, rule.id != "trash");
         }
+
+        let selected: HashSet<&'static str> = rules
+            .iter()
+            .filter(|r| r.id != "cargo-registry")
+            .map(|r| r.id)
+            .collect();
 
         Self {
             view: View::Main,
             scanning: false,
-            groups: Vec::new(),
-            selected: HashSet::new(),
+            groups: crate::scan::scan(&rules),
+            selected,
             roots,
             rule_enabled,
         }

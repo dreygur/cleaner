@@ -1,4 +1,4 @@
-use gpui::{div, IntoElement, ParentElement, Render, Styled};
+use gpui::{div, IntoElement, ParentElement, Render};
 
 use super::state::AppState;
 
@@ -13,7 +13,11 @@ impl RootView {
 }
 
 impl Render for RootView {
-    fn render(&mut self, _window: &mut gpui::Window, _cx: &mut gpui::Context<Self>) -> impl IntoElement {
-        div().size_full().child("Cleaner")
+    fn render(&mut self, _window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        match self.state.view {
+            super::state::View::Main => super::main_view::render_main(&self.state, cx).into_any_element(),
+            super::state::View::Settings => div().child("settings").into_any_element(),
+            super::state::View::ConfirmDelete => div().child("confirm").into_any_element(),
+        }
     }
 }
