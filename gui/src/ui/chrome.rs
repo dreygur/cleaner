@@ -1,22 +1,13 @@
 use gpui::{div, prelude::*, px, App};
-use gpui_component::ActiveTheme;
+use gpui_component::{ActiveTheme, TitleBar as GpuiTitleBar};
 
-/// A toolbar strip below the native title bar: the OS already draws the
-/// real traffic-light buttons, so this only carries the per-screen title
-/// and a trailing nav action.
+/// The app's custom title bar: real macOS traffic lights blended into our
+/// own bar (via `GpuiTitleBar::window_options()` in main.rs), carrying the
+/// per-screen title and a trailing nav action. Draggable and
+/// double-click-to-zoom for free, courtesy of gpui-component's own widget.
 pub fn title_bar(title: impl Into<gpui::SharedString>, cx: &App, trailing: impl IntoElement) -> impl IntoElement {
     let theme = cx.theme();
-    div()
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap_2()
-        .px_3()
-        .py_2()
-        .bg(theme.title_bar)
-        .border_b_1()
-        .border_color(theme.title_bar_border)
-        .child(div().w(px(40.)))
+    GpuiTitleBar::new()
         .child(
             div()
                 .flex_1()
@@ -27,7 +18,7 @@ pub fn title_bar(title: impl Into<gpui::SharedString>, cx: &App, trailing: impl 
                 .text_color(theme.muted_foreground)
                 .child(title.into()),
         )
-        .child(trailing)
+        .child(div().mr_2().child(trailing))
 }
 
 pub fn section_head(label: impl Into<gpui::SharedString>, cx: &App) -> impl IntoElement {

@@ -20,21 +20,16 @@ fn main() {
                 cx,
             );
 
-            cx.open_window(
-                gpui::WindowOptions {
-                    window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
-                    titlebar: Some(gpui::TitlebarOptions {
-                        title: Some("Cleaner".into()),
-                        appears_transparent: false,
-                        traffic_light_position: None,
-                    }),
-                    ..Default::default()
-                },
-                |window, cx| {
-                    let view = cx.new(|cx| ui::root::RootView::new(window, cx));
-                    cx.new(|cx| gpui_component::Root::new(view, window, cx))
-                },
-            )
+            let window_options = gpui::WindowOptions {
+                window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
+                ..gpui_component::TitleBar::window_options()
+            };
+
+            cx.open_window(window_options, |window, cx| {
+                window.set_window_title("Cleaner");
+                let view = cx.new(|cx| ui::root::RootView::new(window, cx));
+                cx.new(|cx| gpui_component::Root::new(view, window, cx))
+            })
             .unwrap();
         });
 }
