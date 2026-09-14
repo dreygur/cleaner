@@ -207,6 +207,8 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
                     div()
                         .flex()
                         .flex_col()
+                        .flex_1()
+                        .min_w(px(0.))
                         .gap_1()
                         .child(
                             div()
@@ -225,12 +227,13 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
                         )
                         .child(
                             div()
+                                .truncate()
                                 .text_size(px(11.5))
                                 .text_color(muted_foreground)
                                 .child(format!("across {} rule groups · scanned {}", state.groups.len(), roots_line)),
                         ),
                 )
-                .child(Button::new("rescan").outline().label("Rescan").on_click(cx.listener(
+                .child(Button::new("rescan").outline().label("Rescan").flex_shrink_0().on_click(cx.listener(
                     |view, _event, _window, cx| {
                         view.state.scanning = true;
                         cx.notify();

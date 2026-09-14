@@ -1,14 +1,9 @@
-use gpui::{div, prelude::*, px, rgb, App};
+use gpui::{div, prelude::*, px, App};
 use gpui_component::ActiveTheme;
 
-const TRAFFIC_RED: u32 = 0xff5f57;
-const TRAFFIC_YELLOW: u32 = 0xfebc2e;
-const TRAFFIC_GREEN: u32 = 0x28c840;
-
-fn traffic_dot(color: u32) -> impl IntoElement {
-    div().w(px(11.)).h(px(11.)).rounded_full().bg(rgb(color))
-}
-
+/// A toolbar strip below the native title bar: the OS already draws the
+/// real traffic-light buttons, so this only carries the per-screen title
+/// and a trailing nav action.
 pub fn title_bar(title: impl Into<gpui::SharedString>, cx: &App, trailing: impl IntoElement) -> impl IntoElement {
     let theme = cx.theme();
     div()
@@ -21,15 +16,7 @@ pub fn title_bar(title: impl Into<gpui::SharedString>, cx: &App, trailing: impl 
         .bg(theme.title_bar)
         .border_b_1()
         .border_color(theme.title_bar_border)
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .gap_2()
-                .child(traffic_dot(TRAFFIC_RED))
-                .child(traffic_dot(TRAFFIC_YELLOW))
-                .child(traffic_dot(TRAFFIC_GREEN)),
-        )
+        .child(div().w(px(40.)))
         .child(
             div()
                 .flex_1()
