@@ -17,9 +17,8 @@ pub fn validate(home: &Path, path: &Path) -> Result<()> {
     if rel.as_os_str().is_empty() {
         return Err(AppError::OutsideHome(path.display().to_string()));
     }
-    if let Some(first) = rel.components().next() {
-        let name = first.as_os_str().to_string_lossy();
-        if PROTECTED_NAMES.contains(&name.as_ref()) {
+    if let Some(name) = rel.to_str() {
+        if PROTECTED_NAMES.contains(&name) {
             return Err(AppError::ProtectedPath(path.display().to_string()));
         }
     }
@@ -95,5 +94,13 @@ mod tests {
         let target = home.path().join("Code").join("proj").join("target");
         fs::create_dir_all(&target).unwrap();
         assert!(validate(home.path(), &target).is_ok());
+    }
+
+    #[test]
+    fn nested_path_under_a_protected_name_is_accepted() {
+        let home = tempdir().unwrap();
+        let cache = home.path().join("Library").join("Caches").join("go-build");
+        fs::create_dir_all(&cache).unwrap();
+        assert!(validate(home.path(), &cache).is_ok());
     }
 }
