@@ -109,9 +109,12 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
         )
         .child(
             div()
+                .id("groups-scroll")
                 .flex()
                 .flex_col()
                 .flex_1()
+                .min_h(gpui::px(0.))
+                .overflow_y_scroll()
                 .children(state.groups.iter().map(|g| row(g, state.selected.contains(g.rule.id), cx))),
         )
         .child(

@@ -1,4 +1,4 @@
-use gpui::{div, AppContext as _, Entity, IntoElement, ParentElement, Render, Subscription};
+use gpui::{div, AppContext as _, Entity, IntoElement, ParentElement, Render, Styled as _, Subscription};
 use gpui_component::input::{InputEvent, InputState};
 
 use super::state::AppState;
@@ -35,7 +35,15 @@ impl Render for RootView {
             super::state::View::Settings => {
                 super::settings_view::render_settings(&self.state, &self.new_root_input, cx).into_any_element()
             }
-            super::state::View::ConfirmDelete => div().child("confirm").into_any_element(),
+            super::state::View::ConfirmDelete => {
+                let main = super::main_view::render_main(&self.state, cx).into_any_element();
+                div()
+                    .relative()
+                    .size_full()
+                    .child(main)
+                    .child(super::confirm_dialog::render_confirm(&self.state, cx).into_any_element())
+                    .into_any_element()
+            }
         }
     }
 }
