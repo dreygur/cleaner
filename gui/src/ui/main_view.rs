@@ -107,6 +107,15 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
                         ))),
                 ),
         )
+        .when_some(state.last_clean_error.as_ref(), |el, msg| {
+            el.child(
+                div()
+                    .px_5()
+                    .pb_2()
+                    .text_size(gpui::px(12.))
+                    .child(msg.clone()),
+            )
+        })
         .child(
             div()
                 .id("groups-scroll")

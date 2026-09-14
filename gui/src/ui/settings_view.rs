@@ -131,7 +131,20 @@ pub fn render_settings(
                         view.state.roots = view.state.draft_roots.clone();
                         view.state.rule_enabled = view.state.draft_rule_enabled.clone();
                         view.state.view = View::Main;
+                        view.state.scanning = true;
                         cx.notify();
+
+                        let snapshot = view.state.rescan_inputs();
+                        cx.spawn(async move |view, cx| {
+                            let groups = cx.background_spawn(async move { snapshot.run() }).await;
+                            view.update(cx, |view, cx| {
+                                view.state.groups = groups;
+                                view.state.scanning = false;
+                                cx.notify();
+                            })
+                            .ok();
+                        })
+                        .detach();
                     },
                 ))),
         )

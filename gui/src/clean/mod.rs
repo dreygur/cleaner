@@ -19,10 +19,9 @@ pub fn validate(home: &Path, path: &Path) -> Result<()> {
     if rel.as_os_str().is_empty() {
         return Err(AppError::OutsideHome(path.display().to_string()));
     }
-    if let Some(name) = rel.to_str() {
-        if PROTECTED_NAMES.contains(&name) {
-            return Err(AppError::ProtectedPath(path.display().to_string()));
-        }
+    let name = rel.to_string_lossy();
+    if PROTECTED_NAMES.contains(&name.as_ref()) {
+        return Err(AppError::ProtectedPath(path.display().to_string()));
     }
 
     let metadata = std::fs::symlink_metadata(path).map_err(|source| AppError::Io {

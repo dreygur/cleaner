@@ -14,6 +14,7 @@ pub enum View {
 pub struct AppState {
     pub view: View,
     pub scanning: bool,
+    pub deleting: bool,
     pub groups: Vec<Group>,
     pub selected: HashSet<&'static str>,
     pub roots: Vec<PathBuf>,
@@ -21,6 +22,7 @@ pub struct AppState {
     pub draft_roots: Vec<PathBuf>,
     pub draft_rule_enabled: HashMap<&'static str, bool>,
     pub new_root_input: String,
+    pub last_clean_error: Option<String>,
 }
 
 impl AppState {
@@ -34,11 +36,12 @@ impl AppState {
             rule_enabled.insert(rule.id, rule.id != "trash");
         }
 
-        let selected: HashSet<&'static str> = rules
-            .iter()
-            .filter(|r| r.id != "cargo-registry")
-            .map(|r| r.id)
+        let enabled_rules: Vec<_> = rules
+            .into_iter()
+            .filter(|r| *rule_enabled.get(r.id).unwrap_or(&true))
             .collect();
+
+        let selected: HashSet<&'static str> = enabled_rules.iter().map(|r| r.id).collect();
 
         let draft_roots = roots.clone();
         let draft_rule_enabled = rule_enabled.clone();
@@ -46,13 +49,15 @@ impl AppState {
         Self {
             view: View::Main,
             scanning: false,
-            groups: crate::scan::scan(&rules),
+            deleting: false,
+            groups: crate::scan::scan(&enabled_rules),
             selected,
             roots,
             rule_enabled,
             draft_roots,
             draft_rule_enabled,
             new_root_input: String::new(),
+            last_clean_error: None,
         }
     }
 
