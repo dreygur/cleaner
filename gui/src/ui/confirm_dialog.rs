@@ -1,5 +1,5 @@
-use gpui::{div, prelude::*, rgb, Context};
-use gpui_component::{button::Button, Disableable};
+use gpui::{div, prelude::*, px, Context};
+use gpui_component::{button::Button, button::ButtonVariants, ActiveTheme, Disableable};
 
 use super::root::RootView;
 use super::state::{AppState, View};
@@ -11,6 +11,7 @@ fn selected_groups(state: &AppState) -> Vec<&Group> {
 }
 
 pub fn render_confirm(state: &AppState, cx: &mut Context<RootView>) -> impl IntoElement {
+    let theme = cx.theme();
     let groups = selected_groups(state);
     let total: u64 = groups.iter().map(|g| g.size).sum();
     let has_trash = groups.iter().any(|g| g.rule.id == "trash");
@@ -23,21 +24,41 @@ pub fn render_confirm(state: &AppState, cx: &mut Context<RootView>) -> impl Into
         .items_start()
         .justify_center()
         .pt_16()
+        .bg(theme.overlay)
         .child(
             div()
-                .w(gpui::px(400.))
+                .w(px(400.))
                 .flex()
                 .flex_col()
-                .bg(rgb(0x2b2b2eu32))
+                .bg(theme.popover)
                 .border_1()
-                .border_color(rgb(0x45454au32))
-                .rounded_md()
+                .border_color(theme.border)
+                .rounded_lg()
                 .shadow_lg()
-                .child(div().text_size(gpui::px(15.)).px_4().pt_4().child(format!("Delete {} groups?", groups.len())))
+                .child(
+                    div()
+                        .px_4()
+                        .pt_4()
+                        .pb_1()
+                        .child(
+                            div()
+                                .text_size(px(15.))
+                                .font_weight(gpui::FontWeight::BOLD)
+                                .text_color(theme.foreground)
+                                .child(format!("Delete {} groups?", groups.len())),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(12.))
+                                .text_color(theme.muted_foreground)
+                                .child("This frees space immediately. Build artifacts and caches listed below regenerate on demand."),
+                        ),
+                )
                 .child(
                     div()
                         .flex()
                         .flex_col()
+                        .gap_1()
                         .px_4()
                         .py_2()
                         .children(groups.iter().map(|g| {
@@ -45,15 +66,29 @@ pub fn render_confirm(state: &AppState, cx: &mut Context<RootView>) -> impl Into
                                 .flex()
                                 .flex_row()
                                 .justify_between()
-                                .child(div().child(g.rule.description.to_string()))
-                                .child(div().child(human_bytes(g.size)))
+                                .items_baseline()
+                                .text_size(px(12.5))
+                                .child(div().text_color(theme.foreground).child(g.rule.description.to_string()))
+                                .child(
+                                    div()
+                                        .font_family(theme.mono_font_family.clone())
+                                        .text_color(theme.muted_foreground)
+                                        .child(human_bytes(g.size)),
+                                )
                         })),
                 )
                 .when(has_trash, |el| {
                     el.child(
                         div()
-                            .px_4()
+                            .mx_4()
+                            .mb_2()
+                            .px_2()
                             .py_2()
+                            .rounded_md()
+                            .bg(theme.warning.alpha(0.14))
+                            .text_size(px(11.5))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_color(theme.warning)
                             .child("Trash is a permanent delete, those items will not be recoverable."),
                     )
                 })
@@ -64,8 +99,17 @@ pub fn render_confirm(state: &AppState, cx: &mut Context<RootView>) -> impl Into
                         .justify_between()
                         .px_4()
                         .py_2()
-                        .child(div().child("Total"))
-                        .child(div().child(human_bytes(total))),
+                        .border_t_1()
+                        .border_color(theme.border)
+                        .text_size(px(13.))
+                        .font_weight(gpui::FontWeight::BOLD)
+                        .child(div().text_color(theme.foreground).child("Total"))
+                        .child(
+                            div()
+                                .font_family(theme.mono_font_family.clone())
+                                .text_color(theme.foreground)
+                                .child(human_bytes(total)),
+                        ),
                 )
                 .child(
                     div()
@@ -75,8 +119,10 @@ pub fn render_confirm(state: &AppState, cx: &mut Context<RootView>) -> impl Into
                         .gap_2()
                         .px_4()
                         .py_3()
+                        .bg(theme.muted)
                         .child(
                             Button::new("confirm-cancel")
+                                .outline()
                                 .label("Cancel")
                                 .disabled(deleting)
                                 .on_click(cx.listener(|view, _event, _window, cx| {
@@ -89,6 +135,7 @@ pub fn render_confirm(state: &AppState, cx: &mut Context<RootView>) -> impl Into
                         )
                         .child(
                             Button::new("confirm-delete")
+                                .danger()
                                 .label("Delete Selected")
                                 .disabled(deleting)
                                 .on_click(cx.listener(|view, _event, _window, cx| {
