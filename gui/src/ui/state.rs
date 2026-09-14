@@ -46,4 +46,27 @@ impl AppState {
             rule_enabled,
         }
     }
+
+    pub fn rescan_inputs(&self) -> RescanInputs {
+        RescanInputs {
+            roots: self.roots.clone(),
+            rule_enabled: self.rule_enabled.clone(),
+        }
+    }
+}
+
+pub struct RescanInputs {
+    roots: Vec<PathBuf>,
+    rule_enabled: HashMap<&'static str, bool>,
+}
+
+impl RescanInputs {
+    pub fn run(&self) -> Vec<Group> {
+        let home = dirs::home_dir().expect("no home directory");
+        let rules: Vec<_> = crate::config::rules(&home, &self.roots)
+            .into_iter()
+            .filter(|r| *self.rule_enabled.get(r.id).unwrap_or(&true))
+            .collect();
+        crate::scan::scan(&rules)
+    }
 }

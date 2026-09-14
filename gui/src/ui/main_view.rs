@@ -78,6 +78,20 @@ pub fn render_main(state: &AppState, cx: &mut Context<RootView>) -> impl IntoEle
                     |view, _event, _window, cx| {
                         view.state.scanning = true;
                         cx.notify();
+
+                        let snapshot = view.state.rescan_inputs();
+                        cx.spawn(async move |view, cx| {
+                            let groups = cx
+                                .background_spawn(async move { snapshot.run() })
+                                .await;
+                            view.update(cx, |view, cx| {
+                                view.state.groups = groups;
+                                view.state.scanning = false;
+                                cx.notify();
+                            })
+                            .ok();
+                        })
+                        .detach();
                     },
                 ))),
         )
