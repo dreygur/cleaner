@@ -5,7 +5,7 @@ use crate::config::PROTECTED_NAMES;
 use crate::error::{AppError, Result};
 use crate::types::{Group, Kind, Target};
 
-pub fn validate(home: &Path, path: &Path) -> Result<()> {
+fn validate(home: &Path, path: &Path) -> Result<()> {
     if !path.is_absolute() {
         return Err(AppError::OutsideHome(path.display().to_string()));
     }
@@ -73,6 +73,8 @@ fn remove_target(home: &Path, kind: Kind, target: &Target) -> Result<()> {
     })
 }
 
+/// Deletes every target in one group and returns the bytes freed along with
+/// any per-target failures. One failure never stops the remaining targets.
 pub fn clean_group(home: &Path, group: &Group) -> (u64, Vec<AppError>) {
     let mut freed = 0u64;
     let mut failures = Vec::new();

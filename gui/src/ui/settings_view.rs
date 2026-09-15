@@ -9,6 +9,7 @@ use gpui_component::{
 use super::chrome::title_bar;
 use super::root::RootView;
 use super::state::{AppState, View};
+use crate::config::RULE_TRASH;
 use crate::types::Kind;
 
 fn group_label(label: impl Into<gpui::SharedString>, cx: &mut Context<RootView>) -> impl IntoElement {
@@ -100,8 +101,8 @@ pub fn render_settings(
     let home = dirs::home_dir().expect("no home directory");
     let rules = crate::config::rules(&home, &[]);
     let artifacts: Vec<_> = rules.iter().filter(|r| r.kind == Kind::Artifact).collect();
-    let caches: Vec<_> = rules.iter().filter(|r| r.kind == Kind::Fixed && r.id != "trash").collect();
-    let trash: Vec<_> = rules.iter().filter(|r| r.id == "trash").collect();
+    let caches: Vec<_> = rules.iter().filter(|r| r.kind == Kind::Fixed && r.id != RULE_TRASH).collect();
+    let trash: Vec<_> = rules.iter().filter(|r| r.id == RULE_TRASH).collect();
 
     let theme = cx.theme();
     let background = theme.background;

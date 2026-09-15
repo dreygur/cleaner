@@ -4,6 +4,7 @@ use gpui_component::{button::Button, button::ButtonVariants, checkbox::Checkbox,
 use super::chrome::{section_head, title_bar};
 use super::root::RootView;
 use super::state::AppState;
+use crate::config::RULE_TRASH;
 use crate::format::human_bytes;
 use crate::types::{Group, Kind};
 
@@ -23,7 +24,7 @@ fn selected_total(state: &AppState) -> (usize, u64) {
 
 fn row(group: &Group, checked: bool, cx: &mut Context<RootView>) -> impl IntoElement {
     let id = group.rule.id;
-    let is_trash = group.rule.id == "trash";
+    let is_trash = group.rule.id == RULE_TRASH;
     let theme = cx.theme();
     let row_bg = if is_trash { theme.danger.alpha(0.08) } else { theme.background };
     let hover_bg = if is_trash { theme.danger.alpha(0.14) } else { theme.muted };
@@ -133,9 +134,9 @@ fn grouped_rows(state: &AppState, cx: &mut Context<RootView>) -> impl IntoElemen
     let caches: Vec<&Group> = state
         .groups
         .iter()
-        .filter(|g| g.rule.kind == Kind::Fixed && g.rule.id != "trash")
+        .filter(|g| g.rule.kind == Kind::Fixed && g.rule.id != RULE_TRASH)
         .collect();
-    let trash: Vec<&Group> = state.groups.iter().filter(|g| g.rule.id == "trash").collect();
+    let trash: Vec<&Group> = state.groups.iter().filter(|g| g.rule.id == RULE_TRASH).collect();
 
     div()
         .id("groups-scroll")

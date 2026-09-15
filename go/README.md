@@ -1,7 +1,7 @@
 # cleaner
 
 A disk reclaimer for macOS development machines. It finds build output, package
-caches, and downloaded dependencies — the things a tool can rebuild — measures
+caches, and downloaded dependencies (the things a tool can rebuild), measures
 them, and deletes only what you approve.
 
 It does not touch source code, browser profiles, container volumes, or anything
@@ -75,14 +75,14 @@ instructions, printed alongside the size in every report.
 | `chrome-cache` | Chrome on-disk HTTP cache | Refills as you browse |
 | `cargo-registry` | Downloaded crate sources | `cargo fetch` (needs network) |
 | `xcode-derived` | Xcode DerivedData | Rebuilt by Xcode |
-| `trash` | Trash | Nothing — this is a permanent delete |
+| `trash` | Trash | Nothing, this is a permanent delete |
 
 Build artifacts are searched under `~/Code`, `~/Projects`, `~/src`, `~/work`,
 and `~/dev` by default. Override with `--roots`.
 
 ## Safety
 
-Deletion is permanent — nothing is moved to Trash first. The guards below are
+Deletion is permanent, nothing is moved to Trash first. The guards below are
 enforced on every path, immediately before it is removed, and each one is
 covered by a test:
 

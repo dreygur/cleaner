@@ -3,6 +3,7 @@ use gpui_component::{button::Button, button::ButtonVariants, ActiveTheme, Disabl
 
 use super::root::RootView;
 use super::state::{AppState, View};
+use crate::config::RULE_TRASH;
 use crate::format::human_bytes;
 use crate::types::Group;
 
@@ -14,7 +15,7 @@ pub fn render_confirm(state: &AppState, cx: &mut Context<RootView>) -> impl Into
     let theme = cx.theme();
     let groups = selected_groups(state);
     let total: u64 = groups.iter().map(|g| g.size).sum();
-    let has_trash = groups.iter().any(|g| g.rule.id == "trash");
+    let has_trash = groups.iter().any(|g| g.rule.id == RULE_TRASH);
     let deleting = state.deleting;
 
     div()

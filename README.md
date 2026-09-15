@@ -2,7 +2,7 @@
 
 A disk reclaimer for macOS development machines, built as a native desktop
 app with [gpui](https://www.gpui.rs/). It finds build output, package
-caches, and downloaded dependencies — the things a tool can rebuild —
+caches, and downloaded dependencies (the things a tool can rebuild),
 measures them, and deletes only what you approve.
 
 It does not touch source code, browser profiles, container volumes, or
@@ -48,16 +48,16 @@ regeneration note, shown alongside its size in every report.
 | `pip-cache` | pip wheel cache | Refetched on next install |
 | `js-tool-cache` | node-gyp and TypeScript caches | Refetched on demand |
 | `chrome-cache` | Chrome on-disk HTTP cache (profile untouched) | Refills as you browse |
-| `cargo-registry` | Downloaded crate sources | `cargo fetch` (needs network) — off by default |
+| `cargo-registry` | Downloaded crate sources | `cargo fetch` (needs network), off by default |
 | `xcode-derived` | Xcode DerivedData | Rebuilt by Xcode |
-| `trash` | Trash | Nothing — this is a permanent delete |
+| `trash` | Trash | Nothing, this is a permanent delete |
 
 Build artifacts are searched under `~/Code`, `~/Projects`, `~/src`, `~/work`,
 and `~/dev` by default. Add or remove roots from Settings.
 
 ## Safety
 
-Deletion is permanent — nothing is moved to Trash first. The guards below
+Deletion is permanent, nothing is moved to Trash first. The guards below
 are enforced on every path, immediately before it is removed:
 
 - Paths outside `$HOME` are rejected.

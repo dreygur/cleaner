@@ -1,5 +1,7 @@
 const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
 
+/// Renders a byte count in decimal units (1000-based), matching the figures
+/// macOS itself reports for disk usage.
 pub fn human_bytes(n: u64) -> String {
     if n < 1000 {
         return format!("{n} B");

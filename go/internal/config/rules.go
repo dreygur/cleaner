@@ -95,7 +95,7 @@ func Rules(home string, searchRoots []string) []models.Rule {
 			filepath.Join(home, ".cargo", "git", "checkouts")),
 		fixed(RuleXcodeDerived, "Xcode DerivedData", "rebuilt by Xcode",
 			filepath.Join(lib, "Developer", "Xcode", "DerivedData")),
-		fixed(RuleTrash, "Trash", "nothing — this is a permanent delete",
+		fixed(RuleTrash, "Trash", "nothing, this is a permanent delete",
 			filepath.Join(home, ".Trash")),
 	}
 }

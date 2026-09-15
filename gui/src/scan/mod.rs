@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::types::{Kind, Rule};
+use rayon::prelude::*;
+
+use crate::types::{Group, Kind, Rule, Target};
 
 fn walk_files(dir: &Path, total: &mut u64) {
     let Ok(entries) = fs::read_dir(dir) else { return };
@@ -15,13 +17,13 @@ fn walk_files(dir: &Path, total: &mut u64) {
     }
 }
 
-pub fn dir_size(root: &Path) -> u64 {
+fn dir_size(root: &Path) -> u64 {
     let mut total = 0u64;
     walk_files(root, &mut total);
     total
 }
 
-pub fn has_marker(dir: &Path, marker: &str) -> bool {
+fn has_marker(dir: &Path, marker: &str) -> bool {
     if marker.is_empty() {
         return true;
     }
@@ -65,18 +67,14 @@ fn collect_artifact(rule: &Rule) -> Vec<PathBuf> {
     found
 }
 
-pub fn collect(rule: &Rule) -> Vec<PathBuf> {
+fn collect(rule: &Rule) -> Vec<PathBuf> {
     match rule.kind {
         Kind::Fixed => collect_fixed(rule),
         Kind::Artifact => collect_artifact(rule),
     }
 }
 
-use rayon::prelude::*;
-
-use crate::types::{Group, Target};
-
-pub fn measure(paths: Vec<PathBuf>) -> Vec<Target> {
+fn measure(paths: Vec<PathBuf>) -> Vec<Target> {
     paths
         .into_par_iter()
         .map(|path| {
@@ -86,6 +84,8 @@ pub fn measure(paths: Vec<PathBuf>) -> Vec<Target> {
         .collect()
 }
 
+/// Locates and measures every directory the given rules match, dropping
+/// rules that matched nothing. Groups come back in rule order, not sorted.
 pub fn scan(rules: &[Rule]) -> Vec<Group> {
     rules
         .iter()

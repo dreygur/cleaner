@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-use crate::config::DEFAULT_SEARCH_ROOTS;
+use crate::config::{DEFAULT_SEARCH_ROOTS, RULE_TRASH};
 use crate::types::Group;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,7 +33,7 @@ impl AppState {
         let mut rule_enabled = HashMap::new();
         let rules = crate::config::rules(&home, &[]);
         for rule in &rules {
-            rule_enabled.insert(rule.id, rule.id != "trash");
+            rule_enabled.insert(rule.id, rule.id != RULE_TRASH);
         }
 
         let enabled_rules: Vec<_> = rules

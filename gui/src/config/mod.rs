@@ -2,12 +2,21 @@ use std::path::{Path, PathBuf};
 
 use crate::types::{Kind, Rule};
 
+/// Directories walked for build artifacts when the caller does not name its
+/// own. Relative to the user's home directory.
 pub const DEFAULT_SEARCH_ROOTS: &[&str] = &["Code", "Projects", "src", "work", "dev"];
 
+/// Directories directly under home that hold user data and must never be
+/// deleted, even if a rule somehow names one.
 pub const PROTECTED_NAMES: &[&str] = &[
     "Documents", "Desktop", "Downloads", "Pictures",
     "Movies", "Music", "Library", "Applications", "Public",
 ];
+
+/// Id of the one rule the UI special-cases: unchecked by default, tagged
+/// permanent, and deleted without the regenerate-on-demand guarantee every
+/// other rule carries.
+pub const RULE_TRASH: &str = "trash";
 
 fn artifact(
     id: &'static str,
@@ -42,6 +51,8 @@ fn fixed(id: &'static str, description: &'static str, regen: &'static str, paths
     }
 }
 
+/// Builds the full rule set for one machine. Every rule targets data that a
+/// tool can rebuild or re-download, so nothing here is a source of truth.
 pub fn rules(home: &Path, search_roots: &[PathBuf]) -> Vec<Rule> {
     let lib = home.join("Library");
     let caches = lib.join("Caches");
@@ -76,7 +87,7 @@ pub fn rules(home: &Path, search_roots: &[PathBuf]) -> Vec<Rule> {
             ]),
         fixed("xcode-derived", "Xcode DerivedData", "rebuilt by Xcode",
             vec![lib.join("Developer").join("Xcode").join("DerivedData")]),
-        fixed("trash", "Trash", "nothing, this is a permanent delete",
+        fixed(RULE_TRASH, "Trash", "nothing, this is a permanent delete",
             vec![home.join(".Trash")]),
     ]
 }
@@ -120,7 +131,7 @@ mod tests {
         let home = PathBuf::from("/Users/test");
         let rs = rules(&home, &[]);
 
-        let trash = rs.iter().find(|r| r.id == "trash").unwrap();
+        let trash = rs.iter().find(|r| r.id == RULE_TRASH).unwrap();
         assert_eq!(trash.paths, vec![home.join(".Trash")]);
 
         let cargo_registry = rs.iter().find(|r| r.id == "cargo-registry").unwrap();
