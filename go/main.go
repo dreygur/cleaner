@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -17,10 +18,12 @@ import (
 	"github.com/dreygur/cleaner/internal/utils"
 )
 
-const (
-	appName    = "cleaner"
-	appVersion = "v0.1.0"
-)
+const appName = "cleaner"
+
+// appVersion is set with -ldflags "-X main.appVersion=..." at build time.
+// The Makefile fills it from `git describe`; a `go build` without that flag
+// leaves it at "dev".
+var appVersion = "dev"
 
 // minReportSize hides groups too small to be worth a decision.
 const minReportSize = 1 << 20
@@ -37,6 +40,7 @@ func homeDir() string {
 func freeBytes(path string) int64 {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs(path, &stat); err != nil {
+		utils.PrintLog("cannot read free space for "+path+": "+err.Error(), utils.LevelWarn)
 		return 0
 	}
 	return int64(stat.Bavail) * int64(stat.Bsize)
@@ -50,6 +54,36 @@ func parseList(raw string) map[string]bool {
 		}
 	}
 	return set
+}
+
+func unknownIDs(all []models.Rule, names map[string]bool) []string {
+	known := make(map[string]bool, len(all))
+	for _, rule := range all {
+		known[rule.ID] = true
+	}
+	var unknown []string
+	for name := range names {
+		if !known[name] {
+			unknown = append(unknown, name)
+		}
+	}
+	sort.Strings(unknown)
+	return unknown
+}
+
+func checkIDs(all []models.Rule, flagName string, names map[string]bool) {
+	unknown := unknownIDs(all, names)
+	if len(unknown) == 0 {
+		return
+	}
+	var ids []string
+	for _, rule := range all {
+		ids = append(ids, rule.ID)
+	}
+	sort.Strings(ids)
+	utils.PrintLog(fmt.Sprintf("unknown rule id in --%s: %s (known: %s)",
+		flagName, strings.Join(unknown, ", "), strings.Join(ids, ", ")), utils.LevelError)
+	os.Exit(1)
 }
 
 func selectRules(all []models.Rule, only, skip map[string]bool) []models.Rule {
@@ -113,11 +147,25 @@ func report(groups []models.Group, home string) int64 {
 	return total
 }
 
-func sweep(home string, groups []models.Group, assumeYes bool) int64 {
+func listRules(rules []models.Rule) {
+	sorted := append([]models.Rule(nil), rules...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].ID < sorted[j].ID })
+	for _, r := range sorted {
+		fmt.Printf("  %-16s %-40s regenerate with: %s\n", r.ID, r.Description, r.Regen)
+	}
+}
+
+func sweep(home string, groups []models.Group, assumeYes bool, interrupted <-chan os.Signal) int64 {
 	in := bufio.NewReader(os.Stdin)
 	var freed int64
 
 	for _, g := range groups {
+		select {
+		case <-interrupted:
+			utils.PrintLog("interrupted, stopping before "+g.Rule.ID, utils.LevelWarn)
+			return freed
+		default:
+		}
 		if !assumeYes && !confirm(in, fmt.Sprintf("delete %s (%s)?", g.Rule.ID, utils.HumanSize(g.Size))) {
 			utils.PrintLog("skipped "+g.Rule.ID, utils.LevelWarn)
 			continue
@@ -140,6 +188,7 @@ func main() {
 		skip      = flag.String("skip", "", "comma-separated rule ids to leave alone")
 		roots     = flag.String("roots", "", "comma-separated directories to search for build artifacts")
 		version   = flag.Bool("version", false, "print version and exit")
+		listOnly  = flag.Bool("list-rules", false, "print known rule ids and what they remove, then exit")
 	)
 	flag.Parse()
 
@@ -149,7 +198,18 @@ func main() {
 	}
 
 	home := homeDir()
-	rules := selectRules(config.Rules(home, resolveRoots(home, *roots)), parseList(*only), parseList(*skip))
+	all := config.Rules(home, resolveRoots(home, *roots))
+
+	if *listOnly {
+		listRules(all)
+		return
+	}
+
+	onlyIDs, skipIDs := parseList(*only), parseList(*skip)
+	checkIDs(all, "only", onlyIDs)
+	checkIDs(all, "skip", skipIDs)
+
+	rules := selectRules(all, onlyIDs, skipIDs)
 	if len(rules) == 0 {
 		utils.PrintLog("no rules selected", utils.LevelWarn)
 		return
@@ -173,6 +233,9 @@ func main() {
 		return
 	}
 
-	freed := sweep(home, groups, *assumeYes)
+	interrupted := make(chan os.Signal, 1)
+	signal.Notify(interrupted, os.Interrupt)
+
+	freed := sweep(home, groups, *assumeYes, interrupted)
 	utils.PrintLog(fmt.Sprintf("freed %s, now %s free", utils.HumanSize(freed), utils.HumanSize(freeBytes(home))), utils.LevelInfo)
 }

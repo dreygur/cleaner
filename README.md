@@ -8,14 +8,20 @@ measures them, and deletes only what you approve.
 It does not touch source code, browser profiles, container volumes, or
 anything outside your home directory.
 
-This is a GUI port of the original Go CLI, which still lives in
-[`go/`](go/) and works the same as before.
+A Go CLI with the same rule set lives in [`go/`](go/) for scripting or
+headless use.
 
-## Build & run
+## Requirements
+
+- macOS
+- Rust 1.98 or newer, installed via [rustup](https://rustup.rs)
+
+## Install
 
 ```sh
-cd gui
-cargo run
+git clone git@github.com:dreygur/cleaner.git
+cd cleaner/gui
+cargo run --release
 ```
 
 The window opens with an empty state; click **Rescan** to scan your default
@@ -90,6 +96,8 @@ cargo build
 cargo test
 ```
 
+The Go CLI has its own build and test flow; see [`go/README.md`](go/README.md).
+
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).
