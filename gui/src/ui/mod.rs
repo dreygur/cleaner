@@ -1,6 +1,0 @@
-pub mod chrome;
-pub mod confirm_dialog;
-pub mod main_view;
-pub mod root;
-pub mod settings_view;
-pub mod state;

@@ -1,41 +1,50 @@
 # Cleaner
 
-A disk reclaimer for macOS development machines, built as a native desktop
-app with [gpui](https://www.gpui.rs/). It finds build output, package
-caches, and downloaded dependencies (the things a tool can rebuild),
+A disk reclaimer for macOS development machines. It finds build output,
+package caches, and downloaded dependencies (the things a tool can rebuild),
 measures them, and deletes only what you approve.
 
 It does not touch source code, browser profiles, container volumes, or
 anything outside your home directory.
 
-A Go CLI with the same rule set lives in [`go/`](go/) for scripting or
-headless use.
-
-## Requirements
-
-- macOS
-- Rust 1.98 or newer, installed via [rustup](https://rustup.rs)
+The CLI lives in [`go/`](go/); see [`go/README.md`](go/README.md) for the
+full flag reference.
 
 ## Install
 
 ```sh
 git clone git@github.com:dreygur/cleaner.git
-cd cleaner/gui
-cargo run --release
+cd cleaner/go
+make install          # builds and installs to ~/.local/bin/cleaner
 ```
 
-The window opens with an empty state; click **Rescan** to scan your default
-search roots and populate the list.
+Or grab a prebuilt binary from [Releases](https://github.com/dreygur/cleaner/releases).
 
-## Using it
+## Usage
 
-- Every reclaimable group is listed with its size and how it regenerates.
-- Uncheck a group to leave it alone; **Trash** is a permanent delete and is
-  called out separately in every list.
-- **Clean Selected…** opens a confirmation dialog listing exactly what will
-  be removed before anything happens.
-- The gear icon opens **Settings**, where you can add or remove search
-  roots and toggle individual rules on or off.
+Scan and report, delete nothing:
+
+```sh
+cleaner --dry-run
+```
+
+Scan, then confirm each group interactively:
+
+```sh
+cleaner
+```
+
+Delete every matched group without prompting:
+
+```sh
+cleaner --yes
+```
+
+List every rule without scanning:
+
+```sh
+cleaner --list-rules
+```
 
 ## Rules
 
@@ -59,7 +68,7 @@ regeneration note, shown alongside its size in every report.
 | `trash` | Trash | Nothing, this is a permanent delete |
 
 Build artifacts are searched under `~/Code`, `~/Projects`, `~/src`, `~/work`,
-and `~/dev` by default. Add or remove roots from Settings.
+and `~/dev` by default. Override with `--roots`.
 
 ## Safety
 
@@ -91,12 +100,11 @@ lower than the figure in the report.
 ## Development
 
 ```sh
-cd gui
-cargo build
-cargo test
+cd go
+make test     # go test ./...
+make vet      # go vet ./...
+make build    # builds bin/cleaner
 ```
-
-The Go CLI has its own build and test flow; see [`go/README.md`](go/README.md).
 
 ## License
 
