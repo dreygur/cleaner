@@ -14,7 +14,7 @@ full flag reference.
 
 ```sh
 git clone git@github.com:dreygur/cleaner.git
-cd cleaner/go
+cd cleaner
 make install          # builds and installs to ~/.local/bin/cleaner
 ```
 
@@ -100,10 +100,9 @@ lower than the figure in the report.
 ## Development
 
 ```sh
-cd go
 make test     # go test ./...
 make vet      # go vet ./...
-make build    # builds bin/cleaner
+make build    # builds go/bin/cleaner
 ```
 
 ## License

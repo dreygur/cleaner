@@ -11,7 +11,7 @@ outside your home directory.
 
 ```sh
 git clone git@github.com:dreygur/cleaner.git
-cd cleaner/go
+cd cleaner
 make install          # builds and installs to ~/.local/bin/cleaner
 ```
 
