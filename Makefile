@@ -1,19 +1,24 @@
+BINARY := cleaner
+PREFIX ?= $(HOME)/.local/bin
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
 .PHONY: build test vet install clean scan
 
 build:
-	$(MAKE) -C go build
+	go build -ldflags "-s -w -X main.appVersion=$(VERSION)" -o bin/$(BINARY) .
 
 test:
-	$(MAKE) -C go test
+	go test ./...
 
 vet:
-	$(MAKE) -C go vet
+	go vet ./...
 
-install:
-	$(MAKE) -C go install
+install: build
+	mkdir -p $(PREFIX)
+	install -m 0755 bin/$(BINARY) $(PREFIX)/$(BINARY)
+
+scan: build
+	./bin/$(BINARY) --dry-run
 
 clean:
-	$(MAKE) -C go clean
-
-scan:
-	$(MAKE) -C go scan
+	rm -rf bin
