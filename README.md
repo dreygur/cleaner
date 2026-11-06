@@ -23,12 +23,13 @@ earlier Go build as a reference for `make compare`.
 ## Install
 
 With Homebrew, this installs `Cleaner.app` and puts `cleaner` on your PATH.
-Apple Silicon only for now. Homebrew asks you to trust a third party tap
-once before it installs from it:
+Apple Silicon only for now. The cask lives in this repo, so tap it by URL.
+Homebrew asks you to trust a third party tap once before it installs from it:
 
 ```sh
-brew trust dreygur/tap
-brew install --cask dreygur/tap/cleaner
+brew tap dreygur/cleaner https://github.com/dreygur/cleaner
+brew trust dreygur/cleaner
+brew install --cask dreygur/cleaner/cleaner
 ```
 
 The app is signed ad hoc, not with an Apple Developer ID, so macOS would
@@ -157,7 +158,7 @@ make test     # cargo test
 make lint     # cargo clippy
 make build    # builds target/release/cleaner
 make ui       # builds and opens the window
-make package  # dist/Cleaner.app, the release zip and the Homebrew cask
+make package  # dist/Cleaner.app, the release zip and Casks/cleaner.rb
 make compare  # benchmarks the Rust build against the Go build in go/
 ```
 

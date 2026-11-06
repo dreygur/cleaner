@@ -24,7 +24,7 @@ install: build
 	mkdir -p $(PREFIX)
 	install -m 0755 target/release/$(BINARY) $(PREFIX)/$(BINARY)
 
-# dist/Cleaner.app, the release zip and the Homebrew cask for it.
+# dist/Cleaner.app, the release zip and Casks/cleaner.rb for it.
 package:
 	scripts/package.sh
 

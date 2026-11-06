@@ -3,7 +3,7 @@
 # GitHub release and renders the Homebrew cask for that zip. Adding
 # x86_64-apple-darwin to TARGETS makes the bundle universal.
 #
-#   scripts/package.sh            -> dist/Cleaner.app, dist/Cleaner-<v>-macos.zip, dist/cleaner.rb
+#   scripts/package.sh            -> dist/Cleaner.app, dist/Cleaner-<v>-macos.zip, Casks/cleaner.rb
 #
 # Ad hoc signing needs no Apple certificate. Apple Silicon refuses to run
 # unsigned code, and a bundle needs one signature over all its parts.
@@ -64,11 +64,11 @@ main() {
   rm -f "$zip"
   ditto -c -k --keepParent "$APP" "$zip"
   sum="$(shasum -a 256 "$zip" | awk '{print $1}')"
-  sed -e "s/@VERSION@/$v/g" -e "s/@SHA256@/$sum/g" "$ROOT/packaging/cleaner.rb.in" >"$DIST/cleaner.rb"
+  sed -e "s/@VERSION@/$v/g" -e "s/@SHA256@/$sum/g" "$ROOT/packaging/cleaner.rb.in" >"$ROOT/Casks/cleaner.rb"
 
   echo "[+] $APP"
   echo "[+] $zip"
-  echo "[+] $DIST/cleaner.rb (sha256 $sum)"
+  echo "[+] $ROOT/Casks/cleaner.rb (sha256 $sum), commit it with the release"
 }
 
 main "$@"

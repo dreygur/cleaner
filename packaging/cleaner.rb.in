@@ -15,9 +15,8 @@ cask "cleaner" do
 
   # The app is signed ad hoc, not with a Developer ID, so Gatekeeper would
   # refuse to open a downloaded copy. Clearing the quarantine flag lets it run.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Cleaner.app"]
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Cleaner.app"]
   end
 
   zap trash: "~/.config/cleaner"
