@@ -12,11 +12,22 @@ It comes as a window app (`Cleaner.app`) and a command line tool
 drives the same engine through `cleaner --json`. [`go/`](go/) keeps the
 earlier Go build as a reference for `make compare`.
 
+![Review: groups largest first, one folder picked at a time](docs/screenshots/review.png)
+
+| Confirm | Deleting |
+| --- | --- |
+| ![Confirm permanent deletion](docs/screenshots/confirm.png) | ![Deleting, progress by group](docs/screenshots/deleting.png) |
+| **Done** | **Settings** |
+| ![Done, space freed](docs/screenshots/done.png) | ![Where Cleaner looks](docs/screenshots/settings.png) |
+
 ## Install
 
-With Homebrew, this installs `Cleaner.app` and puts `cleaner` on your PATH:
+With Homebrew, this installs `Cleaner.app` and puts `cleaner` on your PATH.
+Apple Silicon only for now. Homebrew asks you to trust a third party tap
+once before it installs from it:
 
 ```sh
+brew trust dreygur/tap
 brew install --cask dreygur/tap/cleaner
 ```
 
