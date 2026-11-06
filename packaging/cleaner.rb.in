@@ -1,0 +1,23 @@
+cask "cleaner" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/dreygur/cleaner/releases/download/v#{version}/Cleaner-#{version}-macos.zip"
+  name "Cleaner"
+  desc "Frees disk space by deleting build output and caches that tools can rebuild"
+  homepage "https://github.com/dreygur/cleaner"
+
+  depends_on macos: ">= :big_sur"
+
+  app "Cleaner.app"
+  binary "#{appdir}/Cleaner.app/Contents/MacOS/cleaner"
+
+  # The app is signed ad hoc, not with a Developer ID, so Gatekeeper would
+  # refuse to open a downloaded copy. Clearing the quarantine flag lets it run.
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Cleaner.app"]
+  end
+
+  zap trash: "~/.config/cleaner"
+end
