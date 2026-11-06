@@ -53,8 +53,19 @@ func ignoreMissing(err error) error {
 	return err
 }
 
-// contents removes everything inside path and keeps path itself. ReadDir
-// reports symlinks by their own type, so a link is unlinked, never entered.
+// removeDir removes one subdirectory. os.RemoveAll works on directory
+// descriptors on Unix, so a directory swapped for a symlink mid-walk is
+// unlinked, never followed; recursing by path here would follow it.
+func removeDir(path string) error {
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("remove %q: %w", path, err)
+	}
+	return nil
+}
+
+// contents removes everything inside path and keeps path itself, with its
+// subdirectories removed in parallel. ReadDir reports symlinks by their own
+// type, so a link is unlinked, never entered.
 func (r *remover) contents(path string) error {
 	entries, err := os.ReadDir(path)
 	if err != nil {
@@ -75,10 +86,10 @@ func (r *remover) contents(path string) error {
 			go func() {
 				defer wg.Done()
 				defer func() { <-r.slots }()
-				first.set(r.tree(child))
+				first.set(removeDir(child))
 			}()
 		default:
-			first.set(r.tree(child))
+			first.set(removeDir(child))
 		}
 	}
 	wg.Wait()
@@ -93,8 +104,5 @@ func (r *remover) tree(path string) error {
 			return nil
 		}
 	}
-	if err := os.RemoveAll(path); err != nil {
-		return fmt.Errorf("remove %q: %w", path, err)
-	}
-	return nil
+	return removeDir(path)
 }

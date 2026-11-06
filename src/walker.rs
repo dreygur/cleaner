@@ -9,7 +9,7 @@ use crate::types::{Kind, Rule};
 use crate::util::clean_path;
 
 /// Holds only history; walking its object store finds nothing.
-const GIT_DIR: &str = ".git";
+pub(crate) const GIT_DIR: &str = ".git";
 
 /// Searches every root once for all artifact rules together, fanning
 /// directories out across rayon's pool.

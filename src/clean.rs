@@ -1,4 +1,5 @@
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use rayon::prelude::*;
@@ -7,6 +8,7 @@ use crate::error::{CleanError, Result};
 use crate::remove;
 use crate::types::{Group, Kind, Rule, Target};
 use crate::util::clean_path;
+use crate::walker::GIT_DIR;
 
 /// Directories directly under home that hold user data and must never be
 /// deleted, even if a rule somehow names one.
@@ -67,11 +69,51 @@ fn validate(scope: &Scope, path: &Path) -> Result<()> {
     Ok(())
 }
 
+fn is_artifact(rules: &[Rule], dir: &Path) -> bool {
+    let (Some(name), Some(parent)) = (dir.file_name(), dir.parent()) else {
+        return false;
+    };
+    rules.iter().any(|r| {
+        r.kind == Kind::Artifact && r.dir == name && (r.marker.is_empty() || parent.join(r.marker).exists())
+    })
+}
+
+fn device(path: &Path) -> Option<u64> {
+    fs::symlink_metadata(path).ok().map(|m| m.dev())
+}
+
+/// Whether the scan's walk from root would have reached path, by the same
+/// rules the walker follows: it skips every .git and hidden folders right
+/// under a root, stops at the first match, and never crosses into another
+/// filesystem.
+fn walk_reaches(rules: &[Rule], root: &Path, path: &Path) -> bool {
+    let root = clean_path(root);
+    let Some(rel) = within(&root, path) else {
+        return false;
+    };
+    let parts: Vec<&std::ffi::OsStr> = rel.iter().collect();
+    if parts.iter().any(|p| *p == GIT_DIR) {
+        return false;
+    }
+    if parts.len() > 1 && parts[0].as_encoded_bytes().starts_with(b".") {
+        return false;
+    }
+    let mut dir = root.clone();
+    for part in &parts[..parts.len() - 1] {
+        dir.push(part);
+        if is_artifact(rules, &dir) {
+            return false;
+        }
+    }
+    let dev = fs::metadata(&root).ok().map(|m| m.dev());
+    dev.is_some() && device(path) == dev && path.parent().and_then(device) == dev
+}
+
 /// The rule that would have matched path during a scan, or None. A path
 /// list handed to `--delete` comes from outside, so each entry must be
 /// something a scan could have offered: a fixed cache path, or a rule's
-/// directory with its marker beside it under one of the rule's roots. The
-/// keep list is refused here too.
+/// directory with its marker beside it that the walk from one of the
+/// rule's roots would reach. The keep list is refused here too.
 pub fn resolve<'r>(rules: &'r [Rule], keep: &[PathBuf], path: &Path) -> Option<&'r Rule> {
     let path = clean_path(path);
     if keep.iter().any(|k| clean_path(k) == path) {
@@ -85,7 +127,7 @@ pub fn resolve<'r>(rules: &'r [Rule], keep: &[PathBuf], path: &Path) -> Option<&
         Kind::Artifact => {
             r.dir == name
                 && (r.marker.is_empty() || parent.join(r.marker).exists())
-                && r.roots.iter().any(|root| within(root, &path).is_some())
+                && r.roots.iter().any(|root| walk_reaches(rules, root, &path))
                 && !r.prune.iter().any(|p| path.starts_with(clean_path(p)))
         }
     })
@@ -206,6 +248,34 @@ mod tests {
         assert!(resolve(&rules, &[], home.path()).is_none());
         assert!(resolve(&rules, std::slice::from_ref(&target), &target).is_none(), "kept");
         assert!(resolve(&rules, &[], &cache.join("sub")).is_none());
+    }
+
+    // Paths the walker would never reach are refused even with a marker.
+    #[test]
+    fn resolve_refuses_what_the_walk_skips() {
+        let home = tempfile::tempdir().unwrap();
+        let root = home.path().to_path_buf();
+        let project = |rel: &str| {
+            let dir = root.join(rel);
+            fs::create_dir_all(dir.join("node_modules")).unwrap();
+            fs::write(dir.join("package.json"), "{}").unwrap();
+            dir.join("node_modules")
+        };
+        let ok = project("Code/app");
+        let hidden = project(".nvm/versions/tool");
+        let in_git = project("Code/app2/.git/hooks");
+        let nested = project("Code/app/node_modules/dep");
+
+        let mut r = rule(Kind::Artifact);
+        r.dir = "node_modules";
+        r.marker = "package.json";
+        r.roots = vec![root.clone()];
+        let rules = [r];
+
+        assert!(resolve(&rules, &[], &ok).is_some());
+        assert!(resolve(&rules, &[], &hidden).is_none(), "hidden folder under the root");
+        assert!(resolve(&rules, &[], &in_git).is_none(), "inside .git");
+        assert!(resolve(&rules, &[], &nested).is_none(), "inside another match");
     }
 
     #[test]

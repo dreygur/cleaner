@@ -163,6 +163,15 @@ pub fn delete_json<W: Write + Send>(
 
     let mut by_rule: Vec<(&Rule, Vec<&PathBuf>)> = rules.iter().map(|r| (r, Vec::new())).collect();
     for p in paths {
+        if std::fs::symlink_metadata(p).is_err_and(|e| e.kind() == io::ErrorKind::NotFound) {
+            out.emit(&DeleteEvent::Failed {
+                rule: None,
+                path: text(p),
+                reason: FailReason::Gone,
+                message: format!("{p:?}: no longer exists"),
+            });
+            continue;
+        }
         match clean::resolve(rules, keep, p) {
             Some(rule) => {
                 let slot = by_rule.iter_mut().find(|(r, _)| r.id == rule.id).unwrap();
