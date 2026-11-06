@@ -21,6 +21,8 @@ slint::include_modules!();
 
 /// How often engine events are drained into the UI.
 const POLL: Duration = Duration::from_millis(16);
+/// How often to check whether the native window exists yet.
+const TITLEBAR_RETRY: Duration = Duration::from_millis(10);
 /// Base font size the design and its mockups are drawn at.
 const DESIGN_BASE_PX: f32 = 14.0;
 /// Pixel channels further apart than this count as different in `--shot`.
@@ -202,13 +204,38 @@ fn drain(ctx: &mut Ctx, rx: &Receiver<Event>) -> bool {
     changed
 }
 
-/// The window is frameless (`no-frame` in app.slint) and draws its own title
-/// bar; this keeps the system shadow a framed window would have had.
+/// A normal macOS window whose title bar is transparent and sits over the
+/// content, so the system traffic lights draw on top of the window's own
+/// title bar.
 fn select_backend() -> Result<(), slint::PlatformError> {
     use slint::winit_030::winit::platform::macos::WindowAttributesExtMacOS;
     slint::BackendSelector::new()
-        .with_winit_window_attributes_hook(|attrs| attrs.with_has_shadow(true))
+        .with_winit_window_attributes_hook(|attrs| {
+            attrs.with_titlebar_transparent(true).with_fullsize_content_view(true).with_title_hidden(true)
+        })
         .select()
+}
+
+/// An empty unified toolbar makes AppKit draw a 52pt title bar with the
+/// traffic lights centered in it, the height of the design's title bar.
+/// False until the native window exists.
+fn unify_titlebar(w: &AppWindow) -> bool {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSToolbar, NSView, NSWindowToolbarStyle};
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+    let Some(mtm) = MainThreadMarker::new() else { return false };
+    let handle = w.window().window_handle();
+    let Ok(handle) = handle.window_handle() else { return false };
+    let RawWindowHandle::AppKit(appkit) = handle.as_raw() else { return false };
+    // SAFETY: AppKit handles carry a live NSView for as long as the window
+    // exists, and this runs on the main thread.
+    let view: &NSView = unsafe { appkit.ns_view.cast().as_ref() };
+    let Some(window) = view.window() else { return false };
+    let toolbar = NSToolbar::new(mtm);
+    window.setToolbar(Some(&toolbar));
+    window.setToolbarStyle(NSWindowToolbarStyle::Unified);
+    true
 }
 
 fn run() -> Result<(), slint::PlatformError> {
@@ -234,7 +261,21 @@ fn run() -> Result<(), slint::PlatformError> {
             render(&poll_ctx.borrow(), &w);
         }
     });
-    w.run()?;
+    // Slint creates the native window once the event loop runs, so the
+    // title bar is set up from the loop, as soon as the window is there.
+    let titlebar = Rc::new(Timer::default());
+    let weak = w.as_weak();
+    let stopper = Rc::downgrade(&titlebar);
+    titlebar.start(TimerMode::Repeated, TITLEBAR_RETRY, move || {
+        if weak.upgrade().is_none_or(|w| unify_titlebar(&w))
+            && let Some(t) = stopper.upgrade()
+        {
+            t.stop();
+        }
+    });
+    w.show()?;
+    slint::run_event_loop()?;
+    w.hide()?;
 
     // A scan has no reason to outlive the window. A deletion keeps going, as
     // the Deleting screen promises.
@@ -275,6 +316,7 @@ fn shot(name: &str, out: &str, reference: Option<&str>) -> Result<(), slint::Pla
     let app = demo::app_for(name).ok_or_else(|| slint::PlatformError::Other(format!("unknown screen {name}")))?;
     let w = AppWindow::new()?;
     w.global::<T>().set_frozen(true);
+    w.set_mockup(true);
     // The mockups are drawn at the design's own 14px scale.
     set_base_size(&w, DESIGN_BASE_PX);
     view::render(&app, &w, demo::NOW);

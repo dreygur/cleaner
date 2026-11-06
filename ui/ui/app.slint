@@ -13,17 +13,18 @@ export component AppWindow inherits Window {
     preferred-height: 54.285714rem;
     min-width: 74.285714rem;
     min-height: 54.285714rem;
+    // The real window gets its corners, border and traffic lights from macOS.
+    // Screenshots for comparison with the mockup PNGs draw them instead.
+    in property <bool> mockup;
+    property <length> inset: mockup ? 1px : 0;
     init => {
-        M.w = self.width - 2px;
-        M.h = self.height - 2px;
+        M.w = self.width - 2 * inset;
+        M.h = self.height - 2 * inset;
     }
-    changed width => { M.w = self.width - 2px; }
-    changed height => { M.h = self.height - 2px; }
+    changed width => { M.w = self.width - 2 * inset; }
+    changed height => { M.h = self.height - 2 * inset; }
     default-font-family: "Inter";
-    // Frameless: the window draws its own title bar, corners and border, as
-    // designed. The native title bar would otherwise sit above it.
-    no-frame: true;
-    background: transparent;
+    background: mockup ? transparent : T.ground;
 
     // Every design length is in rem, so this one size scales the whole
     // window. The design is drawn at 14px; macOS body text is 13pt.
@@ -99,14 +100,15 @@ export component AppWindow inherits Window {
     callback add-folder();
     callback remove-keep(int);
 
-    // Rounded window body; the screens live inside its 1px border.
+    // Window body; in a mockup it is rounded and the screens sit inside a
+    // 1px border.
     Rectangle {
-        border-radius: 12px;
+        border-radius: mockup ? 12px : 0;
         background: T.ground;
         clip: true;
         Rectangle {
-            x: 1px;
-            y: 1px;
+            x: inset;
+            y: inset;
             width: M.w;
             height: M.h;
             clip: true;
@@ -192,6 +194,7 @@ export component AppWindow inherits Window {
 
             TitleBar {
                 width: M.w;
+                lights: mockup;
                 title: screen == Screen.settings ? "Settings" : "Cleaner";
                 right: screen == Screen.settings ? Right.back
                     : screen == Screen.scanning || screen == Screen.nothing || screen == Screen.review ? Right.settings
@@ -215,7 +218,7 @@ export component AppWindow inherits Window {
             }
         }
     }
-    Rectangle {
+    if mockup: Rectangle {
         border-radius: 12px;
         border-width: 1px;
         border-color: T.line2;

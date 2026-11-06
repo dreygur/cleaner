@@ -831,6 +831,9 @@ version = "0.2.0"
 dependencies = [
  "cleaner",
  "image",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "raw-window-handle",
  "serde",
  "serde_json",
  "slint",
@@ -4177,6 +4180,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "pin-weak",
+ "raw-window-handle",
  "slint-macros",
  "unicode-segmentation",
  "vtable",

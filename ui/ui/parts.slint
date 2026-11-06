@@ -49,9 +49,15 @@ export component TitleBar inherits Rectangle {
     callback drag();
     callback settings();
     callback back();
+    // Drawn traffic lights, for mockup screenshots only; the real window
+    // shows the system ones. Then the bar is AppKit's unified title bar
+    // height, 52pt, so those sit centered in it.
+    in property <bool> lights;
+    // Height above the bottom hairline, which everything centers in.
+    property <length> inner: self.height - 1px;
     x: 0;
     y: 0;
-    height: 3.714286rem;
+    height: lights ? 3.714286rem : 52px;
     background: T.chrome;
     drag-area := TouchArea {
         pointer-event(e) => {
@@ -62,11 +68,11 @@ export component TitleBar inherits Rectangle {
         double-clicked => { root.zoom(); }
     }
     Rectangle {
-        y: 3.642857rem;
+        y: inner;
         height: 1px;
         background: T.line2;
     }
-    for c[i] in [#FF5F57, #FEBC2E, #28C840]: Rectangle {
+    for c[i] in lights ? [#FF5F57, #FEBC2E, #28C840] : []: Rectangle {
         x: 1.285714rem + i * 1.428571rem;
         y: 1.392857rem;
         width: 0.857143rem;
@@ -82,7 +88,7 @@ export component TitleBar inherits Rectangle {
         }
     }
     Label {
-        y: 1.171429rem;
+        y: (inner - self.height) / 2;
         width: parent.width;
         horizontal-alignment: center;
         text: root.title;
@@ -91,7 +97,7 @@ export component TitleBar inherits Rectangle {
     }
     if right == Right.settings: Rectangle {
         x: parent.width - 0.857143rem - 3.142857rem;
-        y: 0.25rem;
+        y: (inner - self.height) / 2;
         width: 3.142857rem;
         height: 3.142857rem;
         border-radius: 0.714286rem;
@@ -126,7 +132,7 @@ export component TitleBar inherits Rectangle {
     if right == Right.back: Rectangle {
         property <length> bw: back-label.preferred-width + 0.857143rem + 1.142857rem + 0.571429rem + 0.857143rem;
         x: parent.width - 0.857143rem - bw;
-        y: 0.392857rem;
+        y: (inner - self.height) / 2;
         width: bw;
         height: 2.857143rem;
         border-radius: 0.714286rem;
