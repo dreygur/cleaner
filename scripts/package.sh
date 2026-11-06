@@ -46,6 +46,7 @@ bundle() {
     lipo -create -output "$APP/Contents/MacOS/$b" "${inputs[@]}"
   done
   sed "s/@VERSION@/$v/g" "$ROOT/packaging/Info.plist" >"$APP/Contents/Info.plist"
+  cp "$ROOT/packaging/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
   codesign --force --deep --sign - "$APP"
   codesign --verify --deep --strict "$APP"
 }
