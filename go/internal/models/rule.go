@@ -35,6 +35,10 @@ type Rule struct {
 	// Roots are the directories a KindArtifact rule walks.
 	Roots []string
 
+	// Prune are absolute directories a KindArtifact walk never enters, for
+	// trees too large to walk or holding data that only looks like a build.
+	Prune []string
+
 	// Paths are the absolute directories emptied by a KindFixed rule.
 	Paths []string
 

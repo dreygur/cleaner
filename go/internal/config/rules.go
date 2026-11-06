@@ -35,11 +35,25 @@ const (
 	RuleTrash = "trash"
 )
 
-// DefaultSearchRoots are the directories walked for build artifacts when the
-// caller does not name its own. Relative to the user's home directory.
-var DefaultSearchRoots = []string{"Code", "Projects", "src", "work", "dev"}
+// prunedHomeDirs are skipped when the artifact search walks the home
+// directory. Library is covered by the fixed rules and holds app data, the
+// media folders hold photo and music libraries that are slow to walk and never
+// hold builds, and go/pkg is the read only Go module cache.
+var prunedHomeDirs = []string{
+	"Library", "Applications", "Pictures", "Movies", "Music", "Public",
+	filepath.Join("go", "pkg"),
+}
 
-func artifact(id, desc, dir, marker, regen string, roots []string) models.Rule {
+// SearchPrune lists the absolute directories the artifact search never enters.
+func SearchPrune(home string) []string {
+	var paths []string
+	for _, name := range prunedHomeDirs {
+		paths = append(paths, filepath.Join(home, name))
+	}
+	return paths
+}
+
+func artifact(id, desc, dir, marker, regen string, roots, prune []string) models.Rule {
 	return models.Rule{
 		ID:          id,
 		Description: desc,
@@ -47,6 +61,7 @@ func artifact(id, desc, dir, marker, regen string, roots []string) models.Rule {
 		Dir:         dir,
 		Marker:      marker,
 		Roots:       roots,
+		Prune:       prune,
 		Regen:       regen,
 	}
 }
@@ -66,16 +81,17 @@ func fixed(id, desc, regen string, paths ...string) models.Rule {
 func Rules(home string, searchRoots []string) []models.Rule {
 	lib := filepath.Join(home, "Library")
 	caches := filepath.Join(lib, "Caches")
+	prune := SearchPrune(home)
 
 	return []models.Rule{
 		artifact(RuleRustTarget, "Cargo build output", "target", "Cargo.toml",
-			"cargo build", searchRoots),
+			"cargo build", searchRoots, prune),
 		artifact(RuleNodeModules, "Installed npm dependencies", "node_modules", "package.json",
-			"npm install / pnpm install", searchRoots),
+			"npm install / pnpm install", searchRoots, prune),
 		artifact(RuleNextBuild, "Next.js build output", ".next", "package.json",
-			"next build", searchRoots),
+			"next build", searchRoots, prune),
 		artifact(RulePycache, "Compiled Python bytecode", "__pycache__", "",
-			"regenerated on next import", searchRoots),
+			"regenerated on next import", searchRoots, prune),
 
 		fixed(RuleGoBuild, "Go build cache", "go build",
 			filepath.Join(caches, "go-build")),

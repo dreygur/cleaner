@@ -30,14 +30,6 @@ func dirSize(root string) int64 {
 	return total
 }
 
-func hasMarker(dir, marker string) bool {
-	if marker == "" {
-		return true
-	}
-	_, err := os.Stat(filepath.Join(dir, marker))
-	return err == nil
-}
-
 func collectFixed(rule models.Rule) []string {
 	var found []string
 	for _, p := range rule.Paths {
@@ -48,36 +40,6 @@ func collectFixed(rule models.Rule) []string {
 		found = append(found, p)
 	}
 	return found
-}
-
-func collectArtifact(rule models.Rule) []string {
-	var found []string
-	for _, root := range rule.Roots {
-		if info, err := os.Stat(root); err != nil || !info.IsDir() {
-			continue
-		}
-		filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || !d.IsDir() {
-				return nil
-			}
-			if d.Name() != rule.Dir {
-				return nil
-			}
-			if !hasMarker(filepath.Dir(path), rule.Marker) {
-				return nil
-			}
-			found = append(found, path)
-			return filepath.SkipDir
-		})
-	}
-	return found
-}
-
-func collect(rule models.Rule) []string {
-	if rule.Kind == models.KindFixed {
-		return collectFixed(rule)
-	}
-	return collectArtifact(rule)
 }
 
 func measure(paths []string) []models.Target {
@@ -101,9 +63,14 @@ func measure(paths []string) []models.Target {
 // Scan locates and measures every directory the given rules match, dropping
 // rules that matched nothing. Groups come back sorted by the caller, not here.
 func Scan(rules []models.Rule) []models.Group {
+	artifacts := collectArtifacts(rules)
+
 	var groups []models.Group
 	for _, rule := range rules {
-		paths := collect(rule)
+		paths := artifacts[rule.ID]
+		if rule.Kind == models.KindFixed {
+			paths = collectFixed(rule)
+		}
 		if len(paths) == 0 {
 			continue
 		}

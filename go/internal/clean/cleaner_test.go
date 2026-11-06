@@ -23,7 +23,7 @@ func mockDir(t *testing.T, parts ...string) string {
 
 func TestValidateRejectsHomeItself(t *testing.T) {
 	home := t.TempDir()
-	if err := validate(home, home); !errors.Is(err, ErrProtectedPath) {
+	if err := validate(Scope{Home: home}, home); !errors.Is(err, ErrProtectedPath) {
 		t.Errorf("validate(home, home) = %v, want ErrProtectedPath", err)
 	}
 }
@@ -31,7 +31,7 @@ func TestValidateRejectsHomeItself(t *testing.T) {
 func TestValidateRejectsProtectedNames(t *testing.T) {
 	home := t.TempDir()
 	docs := mockDir(t, home, "Documents")
-	if err := validate(home, docs); !errors.Is(err, ErrProtectedPath) {
+	if err := validate(Scope{Home: home}, docs); !errors.Is(err, ErrProtectedPath) {
 		t.Errorf("validate(home, Documents) = %v, want ErrProtectedPath", err)
 	}
 }
@@ -39,7 +39,7 @@ func TestValidateRejectsProtectedNames(t *testing.T) {
 func TestValidateRejectsOutsideHome(t *testing.T) {
 	home := t.TempDir()
 	outside := mockDir(t, t.TempDir(), "elsewhere")
-	if err := validate(home, outside); !errors.Is(err, ErrOutsideHome) {
+	if err := validate(Scope{Home: home}, outside); !errors.Is(err, ErrOutsideHome) {
 		t.Errorf("validate(home, outside) = %v, want ErrOutsideHome", err)
 	}
 }
@@ -51,8 +51,43 @@ func TestValidateRejectsSymlink(t *testing.T) {
 	if err := os.Symlink(real, link); err != nil {
 		t.Fatal(err)
 	}
-	if err := validate(home, link); !errors.Is(err, ErrNotDirectory) {
+	if err := validate(Scope{Home: home}, link); !errors.Is(err, ErrNotDirectory) {
 		t.Errorf("validate(home, symlink) = %v, want ErrNotDirectory", err)
+	}
+}
+
+func TestValidateAllowsAttachedDisk(t *testing.T) {
+	home, disk := t.TempDir(), t.TempDir()
+	target := mockDir(t, disk, "proj", "target")
+	scope := Scope{Home: home, Volumes: []string{disk}}
+
+	if err := validate(scope, target); err != nil {
+		t.Errorf("validate(disk target) = %v, want nil", err)
+	}
+	if err := validate(scope, disk); !errors.Is(err, ErrOutsideHome) {
+		t.Errorf("validate(disk root) = %v, want ErrOutsideHome", err)
+	}
+}
+
+func TestRemoverDeletesDeepTreeWithoutFollowingLinks(t *testing.T) {
+	home := t.TempDir()
+	keep := mockDir(t, home, "keep")
+	tree := filepath.Join(home, "Code", "app", "node_modules")
+	for i := range 50 {
+		mockDir(t, tree, "pkg", string(rune('a'+i%26)), "lib", "deep")
+	}
+	if err := os.Symlink(keep, filepath.Join(tree, "link")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := newRemover().tree(tree); err != nil {
+		t.Fatalf("tree() = %v", err)
+	}
+	if _, err := os.Stat(tree); !os.IsNotExist(err) {
+		t.Errorf("tree still exists")
+	}
+	if _, err := os.Stat(filepath.Join(keep, "blob")); err != nil {
+		t.Errorf("symlink target was touched: %v", err)
 	}
 }
 
@@ -65,7 +100,7 @@ func TestGroupRemovesArtifactDirectory(t *testing.T) {
 		Targets: []models.Target{{Path: target, Size: 2048}},
 	}
 
-	freed, failures := Group(home, group)
+	freed, failures := Group(Scope{Home: home}, group)
 	if len(failures) != 0 {
 		t.Fatalf("Group() failures = %v", failures)
 	}
@@ -86,7 +121,7 @@ func TestGroupEmptiesFixedDirectoryButKeepsIt(t *testing.T) {
 		Targets: []models.Target{{Path: cache, Size: 2048}},
 	}
 
-	if _, failures := Group(home, group); len(failures) != 0 {
+	if _, failures := Group(Scope{Home: home}, group); len(failures) != 0 {
 		t.Fatalf("Group() failures = %v", failures)
 	}
 	entries, err := os.ReadDir(cache)
@@ -111,7 +146,7 @@ func TestGroupReportsFailureWithoutStopping(t *testing.T) {
 		},
 	}
 
-	freed, failures := Group(home, group)
+	freed, failures := Group(Scope{Home: home}, group)
 	if len(failures) != 1 {
 		t.Fatalf("failures = %v, want exactly 1", failures)
 	}

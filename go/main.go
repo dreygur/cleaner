@@ -16,6 +16,7 @@ import (
 	"github.com/dreygur/cleaner/internal/models"
 	"github.com/dreygur/cleaner/internal/scan"
 	"github.com/dreygur/cleaner/internal/utils"
+	"github.com/dreygur/cleaner/internal/volumes"
 )
 
 const appName = "cleaner"
@@ -100,19 +101,17 @@ func selectRules(all []models.Rule, only, skip map[string]bool) []models.Rule {
 	return chosen
 }
 
-func resolveRoots(home, raw string) []string {
-	if raw != "" {
-		var roots []string
-		for _, r := range strings.Split(raw, ",") {
-			if r = strings.TrimSpace(r); r != "" {
-				roots = append(roots, r)
-			}
-		}
-		return roots
+// resolveRoots defaults to the whole home directory plus every attached
+// local disk, so projects outside a conventional folder are still found.
+func resolveRoots(home string, mounts []string, raw string) []string {
+	if raw == "" {
+		return append([]string{home}, mounts...)
 	}
 	var roots []string
-	for _, name := range config.DefaultSearchRoots {
-		roots = append(roots, filepath.Join(home, name))
+	for _, r := range strings.Split(raw, ",") {
+		if r = strings.TrimSpace(r); r != "" {
+			roots = append(roots, r)
+		}
 	}
 	return roots
 }
@@ -127,6 +126,16 @@ func confirm(in *bufio.Reader, question string) bool {
 	return answer == "y" || answer == "yes"
 }
 
+// displayPath shortens paths under home to ~/..., and leaves paths on other
+// disks absolute.
+func displayPath(home, path string) string {
+	rel, err := filepath.Rel(home, path)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return path
+	}
+	return "~/" + rel
+}
+
 func report(groups []models.Group, home string) int64 {
 	var total int64
 	for _, g := range groups {
@@ -136,11 +145,7 @@ func report(groups []models.Group, home string) int64 {
 			if t.Size < minReportSize {
 				continue
 			}
-			rel, err := filepath.Rel(home, t.Path)
-			if err != nil {
-				rel = t.Path
-			}
-			fmt.Printf("  %-16s %10s    ~/%s\n", "", utils.HumanSize(t.Size), rel)
+			fmt.Printf("  %-16s %10s    %s\n", "", utils.HumanSize(t.Size), displayPath(home, t.Path))
 		}
 		fmt.Printf("  %-16s %10s    regenerate with: %s\n\n", "", "", g.Rule.Regen)
 	}
@@ -155,7 +160,7 @@ func listRules(rules []models.Rule) {
 	}
 }
 
-func sweep(home string, groups []models.Group, assumeYes bool, interrupted <-chan os.Signal) int64 {
+func sweep(scope clean.Scope, groups []models.Group, assumeYes bool, interrupted <-chan os.Signal) int64 {
 	in := bufio.NewReader(os.Stdin)
 	var freed int64
 
@@ -170,7 +175,7 @@ func sweep(home string, groups []models.Group, assumeYes bool, interrupted <-cha
 			utils.PrintLog("skipped "+g.Rule.ID, utils.LevelWarn)
 			continue
 		}
-		got, failures := clean.Group(home, g)
+		got, failures := clean.Group(scope, g)
 		freed += got
 		for _, err := range failures {
 			utils.PrintLog(err.Error(), utils.LevelError)
@@ -198,7 +203,8 @@ func main() {
 	}
 
 	home := homeDir()
-	all := config.Rules(home, resolveRoots(home, *roots))
+	mounts := volumes.List(volumes.MountDir)
+	all := config.Rules(home, resolveRoots(home, mounts, *roots))
 
 	if *listOnly {
 		listRules(all)
@@ -217,6 +223,9 @@ func main() {
 
 	before := freeBytes(home)
 	utils.PrintLog(fmt.Sprintf("scanning %d rules, %s free", len(rules), utils.HumanSize(before)), utils.LevelInfo)
+	for _, m := range mounts {
+		utils.PrintLog("including disk "+m, utils.LevelInfo)
+	}
 
 	groups := scan.Scan(rules)
 	sort.Slice(groups, func(i, j int) bool { return groups[i].Size > groups[j].Size })
@@ -236,6 +245,6 @@ func main() {
 	interrupted := make(chan os.Signal, 1)
 	signal.Notify(interrupted, os.Interrupt)
 
-	freed := sweep(home, groups, *assumeYes, interrupted)
+	freed := sweep(clean.Scope{Home: home, Volumes: mounts}, groups, *assumeYes, interrupted)
 	utils.PrintLog(fmt.Sprintf("freed %s, now %s free", utils.HumanSize(freed), utils.HumanSize(freeBytes(home))), utils.LevelInfo)
 }
