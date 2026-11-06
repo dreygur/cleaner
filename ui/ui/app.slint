@@ -1,0 +1,223 @@
+import { T } from "theme.slint";
+import { Check, PillState } from "widgets.slint";
+import { M, TitleBar, Right, GroupRow, TargetRow } from "parts.slint";
+import { Seg, RootRow, LineRow, ProgressRow, FailRow, ScanningScreen, NothingScreen, ReviewScreen, ConfirmDialog, DeletingScreen, DoneScreen, PartialScreen, SettingsScreen } from "screens.slint";
+
+export { T, M, Check, GroupRow, TargetRow, Seg, RootRow, LineRow, ProgressRow, FailRow }
+
+export enum Screen { scanning, nothing, review, confirm, deleting, done, partial, settings }
+
+export component AppWindow inherits Window {
+    title: "Cleaner";
+    preferred-width: 74.285714rem;
+    preferred-height: 54.285714rem;
+    min-width: 74.285714rem;
+    min-height: 54.285714rem;
+    init => {
+        M.w = self.width - 2px;
+        M.h = self.height - 2px;
+    }
+    changed width => { M.w = self.width - 2px; }
+    changed height => { M.h = self.height - 2px; }
+    default-font-family: "Inter";
+    // Frameless: the window draws its own title bar, corners and border, as
+    // designed. The native title bar would otherwise sit above it.
+    no-frame: true;
+    background: transparent;
+
+    // Every design length is in rem, so this one size scales the whole
+    // window. The design is drawn at 14px; macOS body text is 13pt.
+    in property <length> base-size: 13px;
+    default-font-size: base-size;
+
+    in property <Screen> screen;
+
+    // Header and totals, shared by several screens.
+    in property <string> big;
+    in property <string> small;
+    in property <string> lede;
+    in property <string> eyebrow;
+    in property <string> free;
+    in property <string> free-before;
+    in property <string> after;
+
+    // Scanning and Nothing to clean.
+    in property <float> progress;
+    in property <[RootRow]> roots;
+    in property <string> measured;
+    in property <int> skeletons;
+
+    // Review and Confirm.
+    in property <[GroupRow]> groups;
+    in property <bool> untouched;
+    in property <string> folders;
+    in property <string> groups-text;
+    in property <string> delete-label;
+    in property <string> confirm-label;
+    in property <bool> can-delete;
+    in property <string> confirm-title;
+    in property <string> confirm-body1;
+    in property <string> confirm-body2;
+    in property <[LineRow]> confirm-rows;
+
+    // Deleting, Done and Partial failure.
+    in property <[ProgressRow]> progress-rows;
+    in property <string> meta;
+    in property <bool> stopping;
+    in property <[LineRow]> done-rows;
+    in property <[Seg]> hint;
+    in property <[FailRow]> failures;
+    in property <string> deleted-title;
+    in property <string> retry-label;
+
+    // Settings.
+    in property <[RootRow]> setting-roots;
+    in property <[string]> keep;
+
+    callback close-window();
+    callback minimize();
+    callback zoom();
+    callback drag();
+    callback open-settings();
+    callback close-settings();
+    callback cancel-scan();
+    callback rescan();
+    callback toggle-group(int);
+    callback toggle-target(int, int);
+    callback open-group(int);
+    callback sort(bool);
+    callback select-safe();
+    callback clear();
+    callback ask-delete();
+    callback back();
+    callback confirm();
+    callback stop();
+    callback quit();
+    callback show(int);
+    callback retry();
+    callback toggle-root(int);
+    callback add-folder();
+    callback remove-keep(int);
+
+    // Rounded window body; the screens live inside its 1px border.
+    Rectangle {
+        border-radius: 12px;
+        background: T.ground;
+        clip: true;
+        Rectangle {
+            x: 1px;
+            y: 1px;
+            width: M.w;
+            height: M.h;
+            clip: true;
+
+            if screen == Screen.scanning: ScanningScreen {
+                found: big;
+                lede: lede;
+                free: free;
+                progress: progress;
+                roots: roots;
+                groups: groups;
+                measured: measured;
+                skeletons: skeletons;
+                cancel => { root.cancel-scan(); }
+            }
+            if screen == Screen.nothing: NothingScreen {
+                free: free;
+                roots: roots;
+                rescan => { root.rescan(); }
+                settings => { root.open-settings(); }
+            }
+            if screen == Screen.review || screen == Screen.confirm: ReviewScreen {
+                eyebrow: eyebrow;
+                total: big;
+                free: free;
+                after: after;
+                groups: groups;
+                untouched: untouched;
+                folders: folders;
+                groups-text: groups-text;
+                delete-label: delete-label;
+                can-delete: can-delete;
+                dimmed: screen == Screen.confirm;
+                toggle-group(i) => { root.toggle-group(i); }
+                toggle-target(i, j) => { root.toggle-target(i, j); }
+                open-group(i) => { root.open-group(i); }
+                sort(u) => { root.sort(u); }
+                select-safe => { root.select-safe(); }
+                clear => { root.clear(); }
+                delete => { root.ask-delete(); }
+            }
+            if screen == Screen.deleting: DeletingScreen {
+                freed: big;
+                of: small;
+                free: free;
+                progress: progress;
+                rows: progress-rows;
+                meta: meta;
+                stopping: stopping;
+                stop => { root.stop(); }
+            }
+            if screen == Screen.done: DoneScreen {
+                freed: big;
+                from: small;
+                before: free-before;
+                now: free;
+                rows: done-rows;
+                hint: hint;
+                rescan => { root.rescan(); }
+                quit => { root.quit(); }
+            }
+            if screen == Screen.partial: PartialScreen {
+                freed: big;
+                from: small;
+                lede: lede;
+                before: free-before;
+                now: free;
+                failures: failures;
+                deleted: done-rows;
+                deleted-title: deleted-title;
+                retry-label: retry-label;
+                show(i) => { root.show(i); }
+                rescan => { root.rescan(); }
+                retry => { root.retry(); }
+            }
+            if screen == Screen.settings: SettingsScreen {
+                roots: setting-roots;
+                keep: keep;
+                toggle-root(i) => { root.toggle-root(i); }
+                add-folder => { root.add-folder(); }
+                remove-keep(i) => { root.remove-keep(i); }
+            }
+
+            TitleBar {
+                width: M.w;
+                title: screen == Screen.settings ? "Settings" : "Cleaner";
+                right: screen == Screen.settings ? Right.back
+                    : screen == Screen.scanning || screen == Screen.nothing || screen == Screen.review ? Right.settings
+                    : Right.none;
+                close => { root.close-window(); }
+                minimize => { root.minimize(); }
+                zoom => { root.zoom(); }
+                drag => { root.drag(); }
+                settings => { root.open-settings(); }
+                back => { root.close-settings(); }
+            }
+
+            if screen == Screen.confirm: ConfirmDialog {
+                title: confirm-title;
+                body1: confirm-body1;
+                body2: confirm-body2;
+                rows: confirm-rows;
+                delete-label: confirm-label;
+                back => { root.back(); }
+                delete => { root.confirm(); }
+            }
+        }
+    }
+    Rectangle {
+        border-radius: 12px;
+        border-width: 1px;
+        border-color: T.line2;
+    }
+}

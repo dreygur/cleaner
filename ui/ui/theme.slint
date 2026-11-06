@@ -1,0 +1,45 @@
+import "../fonts/Inter-Regular.ttf";
+import "../fonts/Inter-Medium.ttf";
+import "../fonts/Inter-SemiBold.ttf";
+import "../fonts/Inter-Bold.ttf";
+import "../fonts/SpaceGrotesk-Bold.ttf";
+import "../fonts/InterTnum-SemiBold.ttf";
+
+// Tokens from the design handoff's cleaner.css.
+export global T {
+    out property <color> ground: #F4F3EF;
+    out property <color> chrome: #EDECE6;
+    out property <color> surface: #FFFFFF;
+    out property <color> sub: #FAFAF7;
+    out property <color> ink: #16181D;
+    out property <color> muted: #596070;
+    out property <color> line: #E4E2DB;
+    out property <color> line2: #D3D0C6;
+    out property <color> teal: #0B6E5F;
+    out property <color> teal-ink: #085246;
+    out property <color> teal-tint: #DDEEE9;
+    out property <color> teal-mid: #A9D3C8;
+    out property <color> teal-stripe: #0E8472;
+    out property <color> danger: #B42318;
+    out property <color> danger-ink: #8E1B12;
+    out property <color> danger-tint: #FCE9E6;
+    out property <color> amber: #7A5200;
+    out property <color> amber-tint: #FBF0D6;
+    out property <color> track: #ECEAE3;
+    out property <color> code-bg: #F0EEE8;
+    out property <color> seg-bg: #EFEDE7;
+    out property <color> box-border: #7B8190;
+    out property <color> switch-off: #8A8F9C;
+
+    out property <string> sans: "Inter";
+    // Both carry tabular digits baked in (the design's tabular-nums), since
+    // Slint cannot switch OpenType features.
+    out property <string> disp: "Space Grotesk";
+    out property <string> tnum: "Inter Tnum";
+    // The design names JetBrains Mono, but the approved mockups were rendered
+    // with the system monospace fallback; Menlo ships with macOS.
+    out property <string> mono: "Menlo";
+
+    // Set by the screenshot tool so spinners and stripes hold still.
+    in property <bool> frozen: false;
+}

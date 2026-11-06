@@ -1,0 +1,20 @@
+[package]
+name = "cleaner-ui"
+version = "0.2.0"
+edition = "2024"
+license = "MIT"
+description = "Window UI for cleaner"
+
+[[bin]]
+name = "cleaner-ui"
+path = "src/main.rs"
+
+[dependencies]
+cleaner = { path = ".." }
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = "1"
+serde_json = "1"
+slint = { version = "1.18", features = ["unstable-winit-030"] }
+
+[build-dependencies]
+slint-build = "1.18"

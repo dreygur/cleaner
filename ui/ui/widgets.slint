@@ -1,0 +1,419 @@
+import { T } from "theme.slint";
+
+// One line of text sized like a CSS line box: height = font-size * lh, glyphs
+// centered in it the way a browser centers them.
+export component Label inherits Text {
+    in property <float> lh: 1.4;
+    height: self.font-size * lh;
+    vertical-alignment: center;
+    color: T.ink;
+    font-family: T.sans;
+    font-size: 1rem;
+}
+
+// Text placed by its baseline, for runs of different fonts on one line. The
+// box is the font's content area, so v-center puts the baseline at base.
+export component BText inherits Text {
+    in property <length> base;
+    property <float> asc: self.font-family == T.disp ? 0.984 : self.font-family == T.mono ? 0.9282 : 0.96875;
+    property <float> dsc: self.font-family == T.disp ? 0.292 : self.font-family == T.mono ? 0.2358 : 0.2412;
+    y: base - asc * self.font-size;
+    height: (asc + dsc) * self.font-size;
+    width: self.preferred-width;
+    vertical-alignment: center;
+    color: T.ink;
+    font-family: T.sans;
+    font-size: 1rem;
+}
+
+export component Mono inherits Label {
+    font-family: T.mono;
+    font-weight: 400;
+    font-size: 0.857143rem;
+}
+
+// A 16 unit SVG path drawn at any size. Stroke widths are given in the 16
+// unit space, as the design's SVGs are, and scaled with the icon.
+export component Icon inherits Path {
+    in property <length> size: 1.142857rem;
+    in property <float> sw: 1.6;
+    width: size;
+    height: size;
+    viewbox-width: 16;
+    viewbox-height: 16;
+    stroke-width: sw * size / 1.142857rem * 1px;
+    stroke-line-cap: round;
+    fill: transparent;
+}
+
+export component Spinner inherits Rectangle {
+    in property <length> size: 1rem;
+    property <float> turn: T.frozen ? 0 : mod(animation-tick() / 900ms, 1);
+    property <float> r: (size / 1px - 2) / 2;
+    property <float> c: size / 2px;
+    width: size;
+    height: size;
+    border-radius: size / 2;
+    border-width: 2px;
+    border-color: T.teal-mid;
+    // The teal quarter, as the top border of a CSS circle, spun by turn.
+    property <angle> a0: 225deg + turn * 360deg;
+    property <angle> a1: 315deg + turn * 360deg;
+    Path {
+        width: parent.size;
+        height: parent.size;
+        viewbox-width: parent.size / 1px;
+        viewbox-height: parent.size / 1px;
+        stroke: T.teal;
+        stroke-width: 2px;
+        fill: transparent;
+        commands: "M " + (c + r * cos(a0)) + " " + (c + r * sin(a0)) + " A " + r + " " + r + " 0 0 1 " + (c + r * cos(a1)) + " " + (c + r * sin(a1));
+    }
+}
+
+export enum Check { none, some, all }
+
+export component Checkbox inherits FocusScope {
+    in property <Check> value;
+    in property <string> label;
+    callback toggled();
+    width: 1.428571rem;
+    height: 1.428571rem;
+    accessible-role: checkbox;
+    accessible-label: label;
+    accessible-checked: value == Check.all;
+    key-pressed(e) => {
+        if (e.text == " ") {
+            toggled();
+            return accept;
+        }
+        reject
+    }
+    Rectangle {
+        border-radius: 0.428571rem;
+        border-width: 1.5px;
+        border-color: value == Check.none ? T.box-border : T.teal;
+        background: value == Check.none ? T.surface : T.teal;
+    }
+    if value == Check.all: Path {
+        width: 1.428571rem;
+        height: 1.428571rem;
+        viewbox-width: 20;
+        viewbox-height: 20;
+        commands: "M 5.4 9.65 L 8.23 12.47 L 14.6 6.11";
+        stroke: white;
+        stroke-width: 2px;
+        fill: transparent;
+    }
+    if value == Check.some: Rectangle {
+        width: 0.714286rem;
+        height: 2px;
+        border-radius: 1px;
+        background: white;
+    }
+    if root.has-focus: Rectangle {
+        x: -0.214286rem;
+        y: -0.214286rem;
+        width: parent.width + 0.428571rem;
+        height: parent.height + 0.428571rem;
+        border-radius: 0.571429rem;
+        border-width: 2px;
+        border-color: T.teal;
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.focus();
+            toggled();
+        }
+    }
+}
+
+export component Switch inherits FocusScope {
+    in property <bool> on;
+    in property <string> label;
+    callback toggled();
+    width: 3.142857rem;
+    height: 1.857143rem;
+    accessible-role: switch;
+    accessible-label: label;
+    accessible-checked: on;
+    key-pressed(e) => {
+        if (e.text == " ") {
+            toggled();
+            return accept;
+        }
+        reject
+    }
+    Rectangle {
+        border-radius: 0.928571rem;
+        background: on ? T.teal : T.switch-off;
+        Rectangle {
+            x: on ? 1.5rem : 0.214286rem;
+            y: 0.214286rem;
+            width: 1.428571rem;
+            height: 1.428571rem;
+            border-radius: 0.714286rem;
+            background: white;
+            animate x { duration: 150ms; }
+        }
+    }
+    if root.has-focus: Rectangle {
+        x: -0.214286rem;
+        y: -0.214286rem;
+        width: parent.width + 0.428571rem;
+        height: parent.height + 0.428571rem;
+        border-radius: 1.142857rem;
+        border-width: 2px;
+        border-color: T.teal;
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.focus();
+            toggled();
+        }
+    }
+}
+
+export enum BtnKind { plain, primary, danger, text }
+export enum BtnIcon { none, rescan, back }
+
+export component Button inherits FocusScope {
+    in property <string> text;
+    in property <BtnKind> kind: BtnKind.plain;
+    in property <BtnIcon> icon: BtnIcon.none;
+    in property <length> pad: kind == BtnKind.text ? 0.857143rem : 1.428571rem;
+    in property <length> font-size: 1rem;
+    callback clicked();
+    height: 3.142857rem;
+    width: 2 * pad + btn-label.preferred-width + (icon == BtnIcon.none ? 0 : 1.714286rem);
+    accessible-role: button;
+    accessible-label: text;
+    property <bool> hover: touch.has-hover && root.enabled;
+    property <color> fg: kind == BtnKind.primary || kind == BtnKind.danger ? white
+        : kind == BtnKind.text ? T.teal-ink : T.ink;
+    key-pressed(e) => {
+        if (root.enabled && (e.text == " " || e.text == "\n")) {
+            clicked();
+            return accept;
+        }
+        reject
+    }
+    Rectangle {
+        border-radius: 0.714286rem;
+        border-width: kind == BtnKind.text ? 0 : 1px;
+        border-color: kind == BtnKind.primary ? T.teal : kind == BtnKind.danger ? T.danger : T.line2;
+        background: kind == BtnKind.primary ? (hover ? T.teal-ink : T.teal)
+            : kind == BtnKind.danger ? (hover ? T.danger-ink : T.danger)
+            : kind == BtnKind.text ? (hover ? T.teal-tint : transparent)
+            : (hover ? #F6F5F1 : T.surface);
+        opacity: root.enabled ? 1 : 0.45;
+    }
+    HorizontalLayout {
+        padding-left: pad;
+        padding-right: pad;
+        spacing: 0.571429rem;
+        alignment: center;
+        if icon == BtnIcon.rescan: Icon {
+            y: (parent.height - 1.142857rem) / 2;
+            commands: "M13 8a5 5 0 11-1.5-3.5M13 2.5v3h-3";
+            stroke: fg;
+        }
+        if icon == BtnIcon.back: Icon {
+            y: (parent.height - 1.142857rem) / 2;
+            commands: "M13.5 8h-11M6.5 4l-4 4 4 4";
+            stroke: fg;
+        }
+        btn-label := Label {
+            y: (parent.height - self.height) / 2;
+            text: root.text;
+            font-size: root.font-size;
+            font-weight: 600;
+            color: fg;
+        }
+    }
+    if root.has-focus: Rectangle {
+        x: -0.214286rem;
+        y: -0.214286rem;
+        width: parent.width + 0.428571rem;
+        height: parent.height + 0.428571rem;
+        border-radius: 0.928571rem;
+        border-width: 2px;
+        border-color: T.teal;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => {
+            root.focus();
+            root.clicked();
+        }
+    }
+}
+
+export enum TagKind { ok, warn, bad }
+
+export component Tag inherits Rectangle {
+    in property <string> text;
+    in property <TagKind> kind;
+    height: 1.428571rem;
+    width: label.preferred-width + 1.285714rem;
+    border-radius: self.height / 2;
+    background: kind == TagKind.ok ? T.teal-tint : kind == TagKind.warn ? T.amber-tint : T.danger-tint;
+    label := Label {
+        x: 0.642857rem;
+        y: 0.214286rem;
+        lh: 14 / 11;
+        text: root.text;
+        font-size: 0.785714rem;
+        font-weight: 600;
+        letter-spacing: 0.22px;
+        color: kind == TagKind.ok ? T.teal-ink : kind == TagKind.warn ? T.amber : T.danger-ink;
+    }
+}
+
+export enum PillState { plain, done, busy }
+
+export component Pill inherits Rectangle {
+    in property <string> text;
+    in property <PillState> state;
+    height: 2.142857rem;
+    border-radius: 1.071429rem;
+    border-width: 1px;
+    border-color: T.line2;
+    background: T.surface;
+    HorizontalLayout {
+        padding-left: 0.857143rem;
+        padding-right: 0.857143rem;
+        spacing: 0.571429rem;
+        if state == PillState.done: Icon {
+            y: 0.571429rem;
+            size: 1rem;
+            sw: 2;
+            commands: "M3.5 8.5l3 3 6-7";
+            stroke: T.teal;
+        }
+        if state == PillState.busy: Spinner { y: 0.571429rem; }
+        Mono {
+            y: (2.142857rem - self.height) / 2;
+            text: root.text;
+            font-size: 0.892857rem;
+        }
+    }
+}
+
+// Overline label: 0.821429rem, uppercase, tracked out. The design sets it with
+// the font shorthand, so its line height is the font's normal one, which a
+// browser rounds to 1rem (ascent and descent each rounded).
+export component Overline inherits Label {
+    in property <length> track: 0.07 * 0.821429rem;
+    lh: 14 / 11.5;
+    font-size: 0.821429rem;
+    font-weight: 600;
+    letter-spacing: track;
+    color: T.muted;
+}
+
+export component Bar inherits Rectangle {
+    in property <float> total;
+    in property <float> part;
+    height: 0.571429rem;
+    border-radius: 0.285714rem;
+    background: T.track;
+    clip: true;
+    Rectangle {
+        x: 0;
+        width: parent.width * total;
+        background: T.teal-mid;
+    }
+    Rectangle {
+        x: 0;
+        width: parent.width * part;
+        background: T.teal;
+    }
+}
+
+// Progress bar. Live bars carry moving 115 degree stripes.
+export component Progress inherits Rectangle {
+    in property <float> value;
+    in property <bool> live;
+    background: T.track;
+    border-radius: self.height / 2;
+    property <float> period: 22.07;
+    property <float> slant: self.height / 1px * 0.4663;
+    property <float> shift: T.frozen ? 0 : mod(animation-tick() / 40ms, period);
+    fill := Rectangle {
+        x: 0;
+        width: parent.width * clamp(value, 0, 1);
+        border-radius: parent.border-radius;
+        background: T.teal;
+        clip: true;
+        // Light band of each 22.07 unit period, a parallelogram leaning left.
+        for i in live ? ceil((self.width / 1px + slant) / period) + 1 : 0: Path {
+            property <float> x0: (i - 1) * period + period / 2 + shift;
+            x: 0;
+            y: 0;
+            width: fill.width;
+            height: fill.height;
+            viewbox-width: fill.width / 1px;
+            viewbox-height: fill.height / 1px;
+            fill: T.teal-stripe;
+            stroke-width: 0;
+            commands: "M " + x0 + " 0 L " + (x0 + period / 2) + " 0 L " + (x0 + period / 2 - slant) + " " + (fill.height / 1px) + " L " + (x0 - slant) + " " + (fill.height / 1px) + " Z";
+        }
+    }
+}
+
+export component Skeleton inherits Rectangle {
+    background: T.track;
+    border-radius: self.height / 2;
+}
+
+export component Card inherits Rectangle {
+    background: T.surface;
+    border-width: 1px;
+    border-color: T.line;
+    border-radius: 1rem;
+    clip: true;
+}
+
+// "Rebuilds with `cargo build`" or a plain sentence.
+export component RegenNote inherits HorizontalLayout {
+    in property <string> lead: "Rebuilds with";
+    in property <string> regen;
+    in property <bool> command;
+    in property <string> tail;
+    in property <length> font-size: 0.892857rem;
+    height: font-size * 1.4;
+    spacing: 0;
+    alignment: start;
+    if command: Label {
+        text: lead + " ";
+        font-size: root.font-size;
+        color: T.muted;
+    }
+    if command: Rectangle {
+        y: (parent.height - self.height) / 2 + 0.5px;
+        width: code.preferred-width + 0.857143rem;
+        height: code.height + 2px;
+        border-radius: 0.357143rem;
+        background: T.code-bg;
+        code := Mono {
+            x: 0.428571rem;
+            y: 1px;
+            text: regen;
+            lh: 1.164;
+        }
+    }
+    if !command: Label {
+        text: regen;
+        font-size: root.font-size;
+        color: T.muted;
+    }
+    if tail != "": Label {
+        text: tail;
+        font-size: root.font-size;
+        color: T.muted;
+    }
+}

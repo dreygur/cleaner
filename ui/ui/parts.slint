@@ -1,0 +1,487 @@
+// Pieces shared by several screens. Coordinates follow the design's CSS box
+// model, measured from the window's content box (inside its 1px border).
+
+import { T } from "theme.slint";
+import { Label, BText, Mono, Icon, Spinner, Checkbox, Check, Bar, Tag, TagKind, Card, RegenNote, Overline } from "widgets.slint";
+
+export struct TargetRow {
+    path: string,
+    age: string,
+    old: bool,
+    size: string,
+    checked: bool,
+}
+
+export struct GroupRow {
+    name: string,
+    slug: string,
+    regen: string,
+    command: bool,
+    tail: string,
+    tag: string,
+    size: string,
+    bar: float,
+    bar-sel: float,
+    check: Check,
+    open: bool,
+    targets: [TargetRow],
+}
+
+// Size of the window's content box and the page gutter. Globals cannot use
+// rem, so unit carries the window's base size and is set alongside it; w and
+// h follow the window as it resizes.
+export global M {
+    in property <length> unit: 13px;
+    in-out property <length> w: 74.142857 * unit;
+    in-out property <length> h: 54.142857 * unit;
+    out property <length> gutter: 2 * unit;
+    out property <length> foot-h: 5.571429 * unit;
+}
+
+export enum Right { none, settings, back }
+
+export component TitleBar inherits Rectangle {
+    in property <string> title: "Cleaner";
+    in property <Right> right: Right.settings;
+    callback close();
+    callback minimize();
+    callback zoom();
+    callback drag();
+    callback settings();
+    callback back();
+    x: 0;
+    y: 0;
+    height: 3.714286rem;
+    background: T.chrome;
+    drag-area := TouchArea {
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                root.drag();
+            }
+        }
+        double-clicked => { root.zoom(); }
+    }
+    Rectangle {
+        y: 3.642857rem;
+        height: 1px;
+        background: T.line2;
+    }
+    for c[i] in [#FF5F57, #FEBC2E, #28C840]: Rectangle {
+        x: 1.285714rem + i * 1.428571rem;
+        y: 1.392857rem;
+        width: 0.857143rem;
+        height: 0.857143rem;
+        border-radius: 0.428571rem;
+        background: c;
+        TouchArea {
+            clicked => {
+                if (i == 0) { root.close(); }
+                if (i == 1) { root.minimize(); }
+                if (i == 2) { root.zoom(); }
+            }
+        }
+    }
+    Label {
+        y: 1.171429rem;
+        width: parent.width;
+        horizontal-alignment: center;
+        text: root.title;
+        font-size: 0.928571rem;
+        font-weight: 600;
+    }
+    if right == Right.settings: Rectangle {
+        x: parent.width - 0.857143rem - 3.142857rem;
+        y: 0.25rem;
+        width: 3.142857rem;
+        height: 3.142857rem;
+        border-radius: 0.714286rem;
+        background: settings-touch.has-hover ? #16181D12 : transparent;
+        accessible-role: button;
+        accessible-label: "Settings";
+        Icon {
+            x: 0.857143rem;
+            y: 0.857143rem;
+            size: 1.428571rem;
+            sw: 1.4;
+            stroke: T.ink;
+            commands: "M2.5 4.5h11M2.5 11.5h11";
+        }
+        for p in [{ x: 6, y: 4.5 }, { x: 10.5, y: 11.5 }]: Path {
+            x: 0.857143rem;
+            y: 0.857143rem;
+            width: 1.428571rem;
+            height: 1.428571rem;
+            viewbox-width: 16;
+            viewbox-height: 16;
+            fill: T.chrome;
+            stroke: T.ink;
+            stroke-width: 1.75px;
+            commands: "M " + (p.x - 1.7) + " " + p.y + " a 1.7 1.7 0 1 0 3.4 0 a 1.7 1.7 0 1 0 -3.4 0 Z";
+        }
+        settings-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.settings(); }
+        }
+    }
+    if right == Right.back: Rectangle {
+        property <length> bw: back-label.preferred-width + 0.857143rem + 1.142857rem + 0.571429rem + 0.857143rem;
+        x: parent.width - 0.857143rem - bw;
+        y: 0.392857rem;
+        width: bw;
+        height: 2.857143rem;
+        border-radius: 0.714286rem;
+        background: back-touch.has-hover ? T.teal-tint : transparent;
+        accessible-role: button;
+        accessible-label: "Back to results";
+        Icon {
+            x: 0.857143rem;
+            y: 0.857143rem;
+            stroke: T.teal-ink;
+            commands: "M13.5 8h-11M6.5 4l-4 4 4 4";
+        }
+        back-label := Label {
+            x: 2.571429rem;
+            y: (2.857143rem - self.height) / 2;
+            text: "Back to results";
+            font-weight: 600;
+            color: T.teal-ink;
+        }
+        back-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.back(); }
+        }
+    }
+}
+
+export component FreeSpace inherits Rectangle {
+    in property <string> a-label;
+    in property <string> a;
+    in property <bool> a-up;
+    in property <string> b-label;
+    in property <string> b;
+    in property <length> pad-x: 1.428571rem;
+    in property <length> pad-y: 1rem;
+    in property <length> gap: 1.428571rem;
+    in property <length> arrow: 1.428571rem;
+    background: T.surface;
+    border-width: 1px;
+    border-color: T.line;
+    border-radius: 1rem;
+    width: layout.preferred-width;
+    height: 2px + 2 * pad-y + 1rem + 0.285714rem + 1.714286rem * 1.1;
+    layout := HorizontalLayout {
+        padding-left: 1px + pad-x;
+        padding-right: 1px + pad-x;
+        padding-top: 1px + pad-y;
+        padding-bottom: 1px + pad-y;
+        spacing: gap;
+        VerticalLayout {
+            spacing: 0.285714rem;
+            Overline { text: a-label; }
+            Label {
+                lh: 1.1;
+                text: a;
+                font-family: T.disp;
+                font-size: 1.714286rem;
+                font-weight: 700;
+                color: a-up ? T.teal : T.ink;
+            }
+        }
+        if b != "": Rectangle {
+            width: arrow;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                size: arrow;
+                sw: 1.5;
+                stroke: T.muted;
+                commands: "M2.5 8h11M9.5 4l4 4-4 4";
+            }
+        }
+        if b != "": VerticalLayout {
+            spacing: 0.285714rem;
+            Overline { text: b-label; }
+            Label {
+                lh: 1.1;
+                text: b;
+                font-family: T.disp;
+                font-size: 1.714286rem;
+                font-weight: 700;
+                color: T.teal;
+            }
+        }
+    }
+}
+
+export enum Eyebrow { text, spin, tag-ok, tag-warn }
+
+// Page header: eyebrow, big number with its small caption, optional lede,
+// and the free space card aligned to the bottom on the right.
+export component Head inherits Rectangle {
+    in property <Eyebrow> kind;
+    in property <string> tag;
+    in property <string> eyebrow;
+    in property <string> big;
+    in property <string> small;
+    in property <string> lede;
+    in property <string> fs-a-label;
+    in property <string> fs-a;
+    in property <bool> fs-a-up;
+    in property <string> fs-b-label;
+    in property <string> fs-b;
+    property <bool> tagged: kind == Eyebrow.tag-ok || kind == Eyebrow.tag-warn;
+    property <length> eh: tagged ? 1.428571rem : 1rem;
+    property <length> left-h: eh + 0.714286rem + 3.142857rem + (lede != "" ? 0.714286rem + 1.4rem : 0);
+    // Snapped to a whole pixel, as the browser does.
+    out property <length> bottom: round((3.714286rem + 1.857143rem + left-h + 1.571429rem) / 1px) * 1px;
+    x: 0;
+    y: 3.714286rem;
+    width: M.w;
+    height: bottom - 3.714286rem;
+    background: transparent;
+
+    if kind == Eyebrow.spin: Spinner {
+        x: M.gutter;
+        y: 1.857143rem + (eh - 1rem) / 2;
+    }
+    if tagged: Tag {
+        x: M.gutter;
+        y: 1.857143rem;
+        text: root.tag;
+        kind: root.kind == Eyebrow.tag-ok ? TagKind.ok : TagKind.warn;
+    }
+    eyebrow-label := Overline {
+        x: M.gutter + (kind == Eyebrow.spin ? 1.571429rem : tagged ? tag-width.preferred-width + 1.285714rem + 0.571429rem : 0);
+        y: 1.857143rem + (eh - self.height) / 2;
+        text: root.eyebrow;
+        track: 0.09 * 0.821429rem;
+    }
+    // Measures the tag so the eyebrow text can follow it.
+    tag-width := Label {
+        visible: false;
+        text: root.tag;
+        font-size: 0.785714rem;
+        font-weight: 600;
+        letter-spacing: 0.22px;
+    }
+    big-label := Label {
+        x: M.gutter;
+        y: 1.857143rem + eh + 0.714286rem;
+        lh: 1;
+        text: root.big;
+        font-family: T.disp;
+        font-size: 3.142857rem;
+        font-weight: 700;
+        letter-spacing: 0px;
+    }
+    BText {
+        x: big-label.x + big-label.preferred-width + 0.857143rem;
+        base: big-label.y + 1.571429rem + 0.346 * 3.142857rem;
+        text: root.small;
+        font-size: 1.285714rem;
+        font-weight: 500;
+        color: T.muted;
+    }
+    if lede != "": Label {
+        x: M.gutter;
+        y: 1.857143rem + eh + 0.714286rem + 3.142857rem + 0.714286rem;
+        text: root.lede;
+        color: T.muted;
+    }
+    FreeSpace {
+        x: M.w - M.gutter - self.width;
+        y: 1.857143rem + left-h - self.height;
+        a-label: fs-a-label;
+        a: fs-a;
+        a-up: fs-a-up;
+        b-label: fs-b-label;
+        b: fs-b;
+    }
+}
+
+export component Footer inherits Rectangle {
+    y: M.h - M.foot-h;
+    height: M.foot-h;
+    width: M.w;
+    background: T.surface;
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: T.line2;
+    }
+    @children
+}
+
+// Header strip of a list card: muted text left and right.
+export component ListTop inherits Rectangle {
+    in property <string> left;
+    in property <string> right;
+    in property <color> tint: T.muted;
+    in property <int> weight: 400;
+    height: 3.428571rem;
+    Rectangle {
+        y: 3.357143rem;
+        height: 1px;
+        background: T.line;
+    }
+    // 1.5px above center, measured against the mockup PNGs.
+    Label {
+        x: 1.428571rem;
+        y: (3.357143rem - self.height) / 2 - 1.5px;
+        text: left;
+        font-size: 0.892857rem;
+        font-weight: weight;
+        color: root.tint;
+    }
+    if right != "": Label {
+        x: parent.width - 0.571429rem - self.preferred-width;
+        y: (3.357143rem - self.height) / 2 - 1.5px;
+        text: right;
+        font-size: 0.892857rem;
+        color: T.muted;
+    }
+    @children
+}
+
+// Name, mono id and optional amber tag on one baseline.
+export component NameLine inherits Rectangle {
+    in property <string> name;
+    in property <string> slug;
+    in property <string> tag;
+    in property <length> base;
+    in property <int> weight: 600;
+    in property <length> size: 1.071429rem;
+    name-text := BText {
+        x: 0;
+        base: root.base;
+        text: name;
+        font-size: size;
+        font-weight: weight;
+    }
+    slug-text := BText {
+        x: name-text.width + 0.714286rem;
+        base: root.base;
+        text: slug;
+        font-family: T.mono;
+        font-size: 0.857143rem;
+        font-weight: 400;
+        color: T.muted;
+    }
+    if tag != "": Tag {
+        x: slug-text.x + slug-text.width + 0.714286rem;
+        // Its text baseline sits 1px above the line's (vertical-align: 1px).
+        y: root.base - 1px - 0.214286rem - 0.5rem - 0.36385 * 0.785714rem;
+        text: root.tag;
+        kind: TagKind.warn;
+    }
+}
+
+export component GroupView inherits Rectangle {
+    in property <GroupRow> item;
+    in property <bool> selectable: true;
+    in property <bool> chevron: true;
+    callback toggle();
+    callback open();
+    height: 4.857143rem;
+    background: T.surface;
+    Rectangle {
+        y: 4.785714rem;
+        height: 1px;
+        background: T.line;
+    }
+    if selectable: Checkbox {
+        x: 1.428571rem;
+        y: 1.678571rem;
+        value: item.check;
+        label: item.name;
+        toggled => { root.toggle(); }
+    }
+    // Columns follow the design's grid (44 | 1fr | 190 | 92 | 28, 20 right
+    // padding), anchored to the right edge so the row can grow when zoomed.
+    NameLine {
+        x: 3.714286rem;
+        width: parent.width - 27.285714rem;
+        base: 0.960714rem + 1.063571rem;
+        name: item.name;
+        slug: item.slug;
+        tag: item.tag;
+    }
+    RegenNote {
+        x: 3.714286rem;
+        y: 0.960714rem + 1.4rem + 0.214286rem;
+        regen: item.regen;
+        command: item.command;
+        tail: item.tail;
+    }
+    Bar {
+        x: parent.width - 23rem;
+        y: 2.107143rem;
+        width: 11.857143rem;
+        total: item.bar;
+        part: item.bar-sel;
+    }
+    Label {
+        x: parent.width - 10rem;
+        y: 1.692857rem;
+        width: 6.571429rem;
+        horizontal-alignment: right;
+        text: item.size;
+        font-family: T.tnum;
+        font-weight: 600;
+    }
+    if chevron: Icon {
+        x: parent.width - 2.571429rem;
+        y: 1.821429rem;
+        stroke: T.muted;
+        commands: item.open ? "M4 10l4-4 4 4" : "M4 6l4 4 4-4";
+    }
+    if chevron: TouchArea {
+        x: 3.142857rem;
+        width: parent.width - 3.142857rem;
+        mouse-cursor: pointer;
+        clicked => { root.open(); }
+    }
+}
+
+export component TargetView inherits Rectangle {
+    in property <TargetRow> item;
+    callback toggle();
+    height: 3.142857rem;
+    background: T.sub;
+    Rectangle {
+        y: 3.071429rem;
+        height: 1px;
+        background: T.line;
+    }
+    Checkbox {
+        x: 3.428571rem;
+        y: 0.821429rem;
+        value: item.checked ? Check.all : Check.none;
+        label: item.path;
+        toggled => { root.toggle(); }
+    }
+    Mono {
+        x: 5.714286rem;
+        y: 0.885714rem;
+        width: parent.width - 29.285714rem;
+        overflow: elide;
+        text: item.path;
+        font-size: 0.928571rem;
+    }
+    Label {
+        x: parent.width - 23rem;
+        y: 0.910714rem;
+        text: item.age;
+        font-size: 0.892857rem;
+        font-weight: item.old ? 600 : 400;
+        color: item.old ? T.teal-ink : T.muted;
+    }
+    Label {
+        x: parent.width - 10rem;
+        y: 0.835714rem;
+        width: 6.571429rem;
+        horizontal-alignment: right;
+        text: item.size;
+        font-family: T.tnum;
+        font-weight: 600;
+    }
+}

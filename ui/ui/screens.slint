@@ -1,0 +1,1234 @@
+import { T } from "theme.slint";
+import { Label, BText, Mono, Icon, Spinner, Checkbox, Check, Bar, Tag, TagKind, Card, RegenNote, Overline, Button, BtnKind, BtnIcon, Pill, PillState, Progress, Skeleton, Switch } from "widgets.slint";
+import { M, GroupRow, TargetRow, Head, Eyebrow, Footer, ListTop, NameLine, GroupView, TargetView, FreeSpace } from "parts.slint";
+
+export struct Seg {
+    text: string,
+    code: bool,
+    bold: bool,
+}
+
+export struct RootRow {
+    path: string,
+    note: string,
+    on: bool,
+    done: bool,
+}
+
+export struct LineRow {
+    name: string,
+    slug: string,
+    note: string,
+    regen: string,
+    command: bool,
+    size: string,
+}
+
+export struct ProgressRow {
+    name: string,
+    slug: string,
+    // 0 waiting, 1 removing, 2 finished
+    state: int,
+    note: string,
+    current: string,
+    size: string,
+    progress: float,
+}
+
+export struct FailRow {
+    path: string,
+    reason: string,
+    detail: string,
+    size: string,
+}
+
+// A run of text, code and bold pieces on one line, starting at x = 0.
+export component Segments inherits Rectangle {
+    in property <[Seg]> segs;
+    in property <length> font-size: 0.928571rem;
+    in property <color> tint: T.muted;
+    in property <length> base;
+    width: row.preferred-width;
+    row := HorizontalLayout {
+        spacing: 0;
+        for s in segs: BText {
+            base: root.base;
+            text: s.text;
+            font-family: s.code ? T.mono : T.sans;
+            font-size: s.code ? 0.857143rem : root.font-size;
+            font-weight: s.bold && !s.code ? 700 : 400;
+            color: s.code || s.bold ? T.ink : root.tint;
+        }
+    }
+}
+
+export component ScanningScreen inherits Rectangle {
+    in property <string> found;
+    in property <string> lede;
+    in property <string> free;
+    in property <float> progress;
+    in property <[RootRow]> roots;
+    in property <[GroupRow]> groups;
+    in property <string> measured;
+    in property <int> skeletons;
+    callback cancel();
+    head := Head {
+        kind: Eyebrow.spin;
+        eyebrow: "SCANNING";
+        big: found;
+        small: "found so far";
+        lede: lede;
+        fs-a-label: "FREE NOW";
+        fs-a: free;
+    }
+    property <length> top: head.bottom;
+    Card {
+        x: M.gutter;
+        y: top;
+        width: M.w - 2 * M.gutter;
+        height: 6.571429rem;
+        Progress {
+            x: 1.5rem;
+            y: 1.357143rem;
+            width: parent.width - 3rem;
+            height: 0.714286rem;
+            value: progress;
+            live: true;
+        }
+        Overline {
+            x: 1.5rem;
+            y: 1.357143rem + 0.714286rem + 1rem + (2.142857rem - self.height) / 2;
+            text: "SEARCHING";
+        }
+        HorizontalLayout {
+            x: 1.5rem + searching-w.preferred-width + 0.285714rem + 0.714286rem;
+            y: 1.357143rem + 0.714286rem + 1rem;
+            height: 2.142857rem;
+            spacing: 0.714286rem;
+            for r in roots: Pill {
+                text: r.path;
+                state: r.done ? PillState.done : PillState.busy;
+            }
+        }
+        searching-w := Overline {
+            visible: false;
+            text: "SEARCHING";
+        }
+    }
+    Card {
+        x: M.gutter;
+        y: top + 6.571429rem + 1.142857rem;
+        width: M.w - 2 * M.gutter;
+        height: M.h - M.foot-h - 1.428571rem - self.y;
+        ListTop {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            left: "Groups found, largest first";
+            right: measured;
+        }
+        VerticalLayout {
+            x: 1px;
+            y: 3.5rem;
+            width: parent.width - 2px;
+            alignment: start;
+            for g in groups: GroupView {
+                item: g;
+                selectable: false;
+                chevron: false;
+            }
+            for i in skeletons: Rectangle {
+                height: 4.857143rem;
+                opacity: i == 0 ? 0.8 : 0.5;
+                background: T.surface;
+                Rectangle {
+                    y: 4.785714rem;
+                    height: 1px;
+                    background: T.line;
+                }
+                Skeleton {
+                    x: 3.714286rem;
+                    y: 1.285714rem;
+                    width: i == 0 ? 12.857143rem : 10rem;
+                    height: 0.857143rem;
+                }
+                Skeleton {
+                    x: 3.714286rem;
+                    y: 2.857143rem;
+                    width: i == 0 ? 18.571429rem : 15rem;
+                    height: 0.642857rem;
+                }
+                Skeleton {
+                    x: parent.width - 3.428571rem - self.width;
+                    y: 2rem;
+                    width: i == 0 ? 4.285714rem : 3.571429rem;
+                    height: 0.857143rem;
+                }
+            }
+        }
+    }
+    Footer {
+        Label {
+            x: M.gutter;
+            y: 2.821429rem - self.height / 2;
+            text: "Usually takes 1 to 10 seconds.";
+            font-size: 0.964286rem;
+            color: T.muted;
+        }
+        Button {
+            x: M.w - M.gutter - self.width;
+            y: 2.821429rem - 1.571429rem;
+            text: "Cancel";
+            clicked => { root.cancel(); }
+        }
+    }
+}
+
+export component NothingScreen inherits Rectangle {
+    in property <string> free;
+    in property <[RootRow]> roots;
+    callback rescan();
+    callback settings();
+    property <length> col-h: 6.285714rem + 2rem + 3.142857rem + 0.857143rem + 2 * 1.6rem + 2.571429rem + card-h + 2.285714rem + 3.142857rem;
+    property <length> card-h: 2px + 1.428571rem + 1.15rem + 0.857143rem + 2.142857rem + 1.285714rem + 1px + 1rem + 1.15rem + 0.571429rem + 2 * 1.3rem + 1.428571rem;
+    property <length> top: 3.714286rem + (M.h - 3.714286rem - col-h) / 2;
+    Rectangle {
+        x: (M.w - 6.285714rem) / 2;
+        y: top;
+        width: 6.285714rem;
+        height: 6.285714rem;
+        border-radius: 3.142857rem;
+        background: T.teal-tint;
+        Icon {
+            x: 1.714286rem;
+            y: 1.714286rem;
+            size: 2.857143rem;
+            stroke: T.teal;
+            commands: "M3 8.5l3.2 3.2L13 4.5";
+        }
+    }
+    Label {
+        y: top + 6.285714rem + 2rem;
+        width: M.w;
+        lh: 1.1;
+        horizontal-alignment: center;
+        text: "Nothing to clean";
+        font-family: T.disp;
+        font-size: 2.857143rem;
+        font-weight: 700;
+        letter-spacing: -1px;
+    }
+    Label {
+        y: top + 6.285714rem + 2rem + 3.142857rem + 0.857143rem;
+        width: M.w;
+        lh: 1.4;
+        horizontal-alignment: center;
+        text: "No build folders or caches matched in the places Cleaner";
+        font-size: 1.142857rem;
+        color: T.muted;
+    }
+    Segments {
+        x: (M.w - self.width) / 2;
+        base: top + 6.285714rem + 2rem + 3.142857rem + 0.857143rem + 1.6rem + 0.8rem + 0.36385 * 1.142857rem;
+        font-size: 1.142857rem;
+        segs: [{ text: "looks. Your disk has " }, { text: free, bold: true }, { text: " free." }];
+    }
+    Card {
+        x: (M.w - 40rem) / 2;
+        y: top + 6.285714rem + 2rem + 3.142857rem + 0.857143rem + 2 * 1.6rem + 2.571429rem;
+        width: 40rem;
+        height: card-h;
+        Overline {
+            x: 1.785714rem;
+            y: 1.5rem;
+            text: "SEARCHED";
+        }
+        HorizontalLayout {
+            x: 1.785714rem;
+            y: 1.5rem + 1.15rem + 0.857143rem;
+            height: 2.142857rem;
+            spacing: 0.714286rem;
+            for r in roots: Pill { text: r.path; }
+        }
+        Rectangle {
+            x: 1.785714rem;
+            y: 1.5rem + 1.15rem + 0.857143rem + 2.142857rem + 1.285714rem;
+            width: parent.width - 3.571429rem;
+            height: 1px;
+            background: T.line;
+        }
+        Overline {
+            x: 1.785714rem;
+            y: 1.5rem + 1.15rem + 0.857143rem + 2.142857rem + 1.285714rem + 1px + 1rem;
+            text: "SKIPPED BY DESIGN";
+        }
+        for line[i] in ["~/Library, media folders, hidden folders directly under a root, every .git, and", "network or read-only disks."]: Label {
+            x: 1.785714rem;
+            y: 1.5rem + 1.15rem + 0.857143rem + 2.142857rem + 1.285714rem + 1px + 1rem + 1.15rem + 0.571429rem + i * 1.3rem;
+            text: line;
+            font-size: 0.928571rem;
+            color: T.muted;
+        }
+    }
+    HorizontalLayout {
+        x: (M.w - self.preferred-width) / 2;
+        y: top + col-h - 3.142857rem;
+        height: 3.142857rem;
+        spacing: 0.857143rem;
+        Button {
+            text: "Rescan";
+            kind: BtnKind.primary;
+            icon: BtnIcon.rescan;
+            pad: 2rem;
+            clicked => { root.rescan(); }
+        }
+        Button {
+            text: "Change search folders";
+            clicked => { root.settings(); }
+        }
+    }
+}
+
+export component ReviewScreen inherits Rectangle {
+    in property <string> eyebrow;
+    in property <string> total;
+    in property <string> free;
+    in property <string> after;
+    in property <[GroupRow]> groups;
+    in property <bool> untouched;
+    in property <string> folders;
+    in property <string> groups-text;
+    in property <string> delete-label;
+    in property <bool> can-delete;
+    in property <bool> dimmed;
+    callback toggle-group(int);
+    callback toggle-target(int, int);
+    callback open-group(int);
+    callback sort(bool);
+    callback select-safe();
+    callback clear();
+    callback delete();
+    head := Head {
+        kind: dimmed ? Eyebrow.text : Eyebrow.tag-ok;
+        tag: "SCAN COMPLETE";
+        eyebrow: dimmed ? "REVIEW" : eyebrow;
+        big: total;
+        small: "can be cleared";
+        lede: dimmed ? "" : "Build output and caches that a tool can rebuild or download again. Nothing is selected yet.";
+        fs-a-label: "FREE NOW";
+        fs-a: free;
+        fs-b-label: dimmed ? "" : "AFTER SELECTION";
+        fs-b: dimmed ? "" : after;
+    }
+    Card {
+        x: M.gutter;
+        y: head.bottom;
+        width: M.w - 2 * M.gutter;
+        height: M.h - M.foot-h - 1.428571rem - self.y;
+        property <length> list-y: dimmed ? 1px : 3.5rem;
+        if !dimmed: ListTop {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            left: untouched ? "Least recently touched first. Open a group to pick single folders." : "Largest first. Open a group to pick single folders.";
+            Rectangle {
+                x: parent.width - 0.571429rem - safe.width - 0.571429rem - self.width;
+                y: 0.392857rem;
+                width: seg.preferred-width;
+                height: 2.571429rem;
+                border-radius: 0.642857rem;
+                background: T.seg-bg;
+                seg := HorizontalLayout {
+                    padding: 0.214286rem;
+                    spacing: 2px;
+                    for label[i] in ["Size", "Untouched"]: Rectangle {
+                        property <bool> on: (i == 1) == root.untouched;
+                        width: seg-text.preferred-width + 1.714286rem;
+                        border-radius: 0.5rem;
+                        background: on ? T.surface : transparent;
+                        drop-shadow-color: on ? #16181D1F : transparent;
+                        drop-shadow-blur: 2px;
+                        drop-shadow-offset-y: 1px;
+                        accessible-role: button;
+                        accessible-label: label;
+                        seg-text := Label {
+                            x: 0.857143rem;
+                            y: (2.142857rem - self.height) / 2;
+                            text: label;
+                            font-size: 0.892857rem;
+                            font-weight: 600;
+                            color: on ? T.ink : T.muted;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.sort(i == 1); }
+                        }
+                    }
+                }
+            }
+            safe := Button {
+                x: parent.width - 0.571429rem - self.width;
+                y: 0.392857rem;
+                height: 2.571429rem;
+                kind: BtnKind.text;
+                font-size: 0.928571rem;
+                text: "Select all safe groups";
+                clicked => { root.select-safe(); }
+            }
+        }
+        Flickable {
+            x: 1px;
+            y: list-y;
+            width: parent.width - 2px;
+            height: parent.height - list-y - 1px;
+            content-height: rows.preferred-height;
+            interactive: !dimmed;
+            rows := VerticalLayout {
+                alignment: start;
+                for g[i] in groups: VerticalLayout {
+                    GroupView {
+                        item: g;
+                        chevron: !dimmed;
+                        toggle => { root.toggle-group(i); }
+                        open => { root.open-group(i); }
+                    }
+                    for t[j] in g.open ? g.targets : []: TargetView {
+                        item: t;
+                        toggle => { root.toggle-target(i, j); }
+                    }
+                }
+            }
+        }
+    }
+    Footer {
+        if !dimmed: Button {
+            x: M.gutter;
+            y: 2.821429rem - 1.571429rem;
+            kind: BtnKind.text;
+            text: "Clear selection";
+            clicked => { root.clear(); }
+        }
+        Segments {
+            x: dimmed ? M.gutter : M.gutter + clear-w.preferred-width + 1.714286rem + 1.142857rem;
+            base: 2.821429rem - 0.675rem + 0.3375rem + 0.36385 * 0.964286rem;
+            font-size: 0.964286rem;
+            segs: dimmed ? [{ text: folders, bold: true }] : [{ text: folders, bold: true }, { text: " " + groups-text }];
+        }
+        // Behind the dialog the footer is a flex row: a 1.142857rem gap, not a space.
+        if dimmed: BText {
+            x: M.gutter + folders-w.preferred-width + 1.142857rem;
+            base: 2.821429rem - 0.675rem + 0.3375rem + 0.36385 * 0.964286rem;
+            text: groups-text;
+            font-size: 0.964286rem;
+            color: T.muted;
+        }
+        folders-w := Label {
+            visible: false;
+            text: folders;
+            font-size: 0.964286rem;
+            font-weight: 700;
+        }
+        clear-w := Label {
+            visible: false;
+            text: "Clear selection";
+            font-weight: 600;
+        }
+        Button {
+            x: M.w - M.gutter - self.width;
+            y: 2.821429rem - 1.714286rem;
+            height: 3.428571rem;
+            kind: BtnKind.danger;
+            pad: 1.857143rem;
+            font-size: 1.071429rem;
+            text: delete-label;
+            enabled: can-delete;
+            clicked => { root.delete(); }
+        }
+    }
+}
+
+export component ConfirmDialog inherits Rectangle {
+    in property <string> title;
+    in property <string> body1;
+    in property <string> body2;
+    in property <[LineRow]> rows;
+    in property <string> delete-label;
+    callback back();
+    callback delete();
+    property <length> text-h: 2.135714rem + 0.714286rem + 2 * 1.45rem;
+    property <length> table-h: 2px + rows.length * 4.507143rem + max(0, rows.length - 1) * 1px;
+    property <length> modal-h: 2.142857rem + max(3.428571rem, text-h) + 1.571429rem + table-h + 1rem + 2 * 1.3rem + 1.857143rem + 3.142857rem + 2.142857rem;
+    background: #16181D80;
+    TouchArea { }
+    Rectangle {
+        x: (M.w - 38.571429rem) / 2;
+        y: (M.h - modal-h) / 2;
+        width: 38.571429rem;
+        height: modal-h;
+        border-radius: 1.285714rem;
+        background: T.surface;
+        drop-shadow-color: #16181D59;
+        drop-shadow-blur: 5rem;
+        drop-shadow-offset-y: 1.714286rem;
+        Rectangle {
+            x: 2.142857rem;
+            y: 2.142857rem;
+            width: 3.428571rem;
+            height: 3.428571rem;
+            border-radius: 1rem;
+            background: T.danger-tint;
+            Icon {
+                x: 0.857143rem;
+                y: 0.857143rem;
+                size: 1.714286rem;
+                sw: 1.5;
+                stroke: T.danger;
+                commands: "M8 2.5l6 10.5H2L8 2.5zM8 6.8v3M8 11.6v.1";
+            }
+        }
+        Label {
+            x: 6.714286rem;
+            y: 2.142857rem;
+            lh: 1.15;
+            text: title;
+            font-family: T.disp;
+            font-size: 1.857143rem;
+            font-weight: 700;
+            letter-spacing: -0.52px;
+        }
+        for line[i] in [body1, body2]: Label {
+            x: 6.714286rem;
+            y: 2.142857rem + 2.135714rem + 0.714286rem + i * 1.45rem;
+            text: line;
+            font-size: 1.035714rem;
+            color: T.muted;
+        }
+        Rectangle {
+            x: 2.142857rem;
+            y: 2.142857rem + max(3.428571rem, text-h) + 1.571429rem;
+            width: 34.285714rem;
+            height: table-h;
+            border-radius: 0.857143rem;
+            border-width: 1px;
+            border-color: T.line;
+            clip: true;
+            VerticalLayout {
+                x: 1px;
+                y: 1px;
+                width: parent.width - 2px;
+                alignment: start;
+                for r[i] in rows: Rectangle {
+                    height: 4.507143rem + (i < rows.length - 1 ? 1px : 0);
+                    if i < rows.length - 1: Rectangle {
+                        y: 4.507143rem;
+                        height: 1px;
+                        background: T.line;
+                    }
+                    Label {
+                        x: 1.142857rem;
+                        y: 0.857143rem;
+                        text: r.name;
+                        font-weight: 600;
+                    }
+                    RegenNote {
+                        x: 1.142857rem;
+                        y: 0.857143rem + 1.4rem + 2px;
+                        lead: r.note;
+                        regen: r.regen;
+                        command: r.command;
+                    }
+                    Label {
+                        x: parent.width - 1.142857rem - self.preferred-width;
+                        y: (4.507143rem - self.height) / 2;
+                        text: r.size;
+                        font-family: T.tnum;
+                        font-weight: 600;
+                    }
+                }
+            }
+        }
+        for line[i] in ["Each path is checked again just before it is deleted. Anything that fails the", "check is skipped."]: Label {
+            x: 2.142857rem;
+            y: 2.142857rem + max(3.428571rem, text-h) + 1.571429rem + table-h + 1rem + i * 1.3rem;
+            text: line;
+            font-size: 0.928571rem;
+            color: T.muted;
+        }
+        HorizontalLayout {
+            x: 38.571429rem - 2.142857rem - self.preferred-width;
+            y: modal-h - 2.142857rem - 3.142857rem;
+            height: 3.142857rem;
+            spacing: 0.857143rem;
+            Button {
+                text: "Back";
+                pad: 1.714286rem;
+                clicked => { root.back(); }
+            }
+            Button {
+                text: delete-label;
+                kind: BtnKind.danger;
+                pad: 1.714286rem;
+                clicked => { root.delete(); }
+            }
+        }
+    }
+}
+
+export component DeletingScreen inherits Rectangle {
+    in property <string> freed;
+    in property <string> of;
+    in property <string> free;
+    in property <float> progress;
+    in property <[ProgressRow]> rows;
+    in property <string> meta;
+    in property <bool> stopping;
+    callback stop();
+    head := Head {
+        kind: Eyebrow.spin;
+        eyebrow: "DELETING · PERMANENT";
+        big: freed;
+        small: of;
+        lede: "Closing the window does not stop this. Use Stop to finish the current group and halt.";
+        fs-a-label: "FREE NOW";
+        fs-a: free;
+        fs-a-up: true;
+    }
+    Progress {
+        x: M.gutter;
+        y: head.bottom;
+        width: M.w - 2 * M.gutter;
+        height: 0.857143rem;
+        value: progress;
+        live: true;
+    }
+    Card {
+        x: M.gutter;
+        y: head.bottom + 0.857143rem + 1.142857rem;
+        width: M.w - 2 * M.gutter;
+        height: M.h - M.foot-h - 1.428571rem - self.y;
+        ListTop {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            left: "Progress by group";
+            right: meta;
+        }
+        VerticalLayout {
+            x: 1px;
+            y: 3.5rem;
+            width: parent.width - 2px;
+            alignment: start;
+            for r in rows: Rectangle {
+                property <bool> active: r.state == 1;
+                height: active ? 1.285714rem + 1.4rem + 0.857143rem + 0.714286rem + 0.714286rem + 1.25rem + 1.285714rem + 1px : 1.285714rem + 1.4rem + 1.25rem + 1.285714rem + 1px;
+                background: T.surface;
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: T.line;
+                }
+                if r.state == 2: Rectangle {
+                    x: 1.428571rem;
+                    y: (parent.height - 1px - 2rem) / 2;
+                    width: 2rem;
+                    height: 2rem;
+                    border-radius: 1rem;
+                    background: T.teal;
+                    Icon {
+                        x: 0.428571rem;
+                        y: 0.428571rem;
+                        sw: 2;
+                        stroke: white;
+                        commands: "M3.5 8.5l3 3 6-7";
+                    }
+                }
+                if r.state == 1: Spinner {
+                    x: 1.714286rem;
+                    y: 1.571429rem;
+                    size: 1.428571rem;
+                }
+                if r.state == 0: Rectangle {
+                    x: 1.428571rem;
+                    y: (parent.height - 1px - 2rem) / 2;
+                    width: 2rem;
+                    height: 2rem;
+                    border-radius: 1rem;
+                    border-width: 1.5px;
+                    border-color: T.line2;
+                }
+                NameLine {
+                    x: 4.571429rem;
+                    base: (active ? 1.285714rem : (parent.height - 1px - 2.65rem) / 2) + 1.063571rem;
+                    name: r.name;
+                    slug: r.slug;
+                }
+                Label {
+                    x: parent.width - 1.428571rem - self.preferred-width;
+                    y: active ? 1.285714rem : (parent.height - 1px - self.height) / 2;
+                    text: r.size;
+                    font-family: T.tnum;
+                    font-weight: 600;
+                }
+                if active: Progress {
+                    x: 4.571429rem;
+                    y: 1.285714rem + 1.4rem + 0.857143rem;
+                    width: parent.width - 4.571429rem - 1.428571rem;
+                    height: 0.714286rem;
+                    value: r.progress;
+                }
+                Segments {
+                    x: 4.571429rem;
+                    base: (active ? 1.285714rem + 1.4rem + 0.857143rem + 0.714286rem + 0.714286rem : (parent.height - 1px - 2.65rem) / 2 + 1.4rem) + 0.625rem + 0.36385 * 0.892857rem;
+                    font-size: 0.892857rem;
+                    segs: r.current == "" ? [{ text: r.note }] : [{ text: r.note + " · now removing " }, { text: r.current, code: true }];
+                }
+            }
+        }
+    }
+    Footer {
+        Label {
+            x: M.gutter;
+            y: 2.821429rem - self.height / 2;
+            text: "Each folder is checked again just before it is removed.";
+            font-size: 0.964286rem;
+            color: T.muted;
+        }
+        Button {
+            x: M.w - M.gutter - self.width;
+            y: 2.821429rem - 1.571429rem;
+            pad: 1.714286rem;
+            text: stopping ? "Stopping after this group…" : "Stop after current group";
+            enabled: !stopping;
+            clicked => { root.stop(); }
+        }
+    }
+}
+
+export component DoneScreen inherits Rectangle {
+    in property <string> freed;
+    in property <string> from;
+    in property <string> before;
+    in property <string> now;
+    in property <[LineRow]> rows;
+    in property <[Seg]> hint;
+    callback rescan();
+    callback quit();
+    property <length> card-h: 2px + rows.length * 3.071429rem + max(0, rows.length - 1) * 1px;
+    property <length> col-h: 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem + 5.428571rem + 0.714286rem + 1.7rem + 2.428571rem + fs.height + 1.428571rem + card-h + (hint.length > 0 ? 1rem + 1.3rem : 0) + 2.142857rem + 3.142857rem;
+    property <length> top: 3.714286rem + (M.h - 3.714286rem - col-h) / 2;
+    Rectangle {
+        x: (M.w - 5.142857rem) / 2;
+        y: top;
+        width: 5.142857rem;
+        height: 5.142857rem;
+        border-radius: 2.571429rem;
+        background: T.teal;
+        Icon {
+            x: 1.357143rem;
+            y: 1.357143rem;
+            size: 2.428571rem;
+            sw: 1.8;
+            stroke: white;
+            commands: "M3 8.5l3.2 3.2L13 4.5";
+        }
+    }
+    Overline {
+        y: top + 5.142857rem + 1.714286rem;
+        width: M.w;
+        horizontal-alignment: center;
+        text: "DONE";
+        track: 0.09 * 0.821429rem;
+    }
+    Label {
+        y: top + 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem;
+        width: M.w;
+        lh: 1;
+        horizontal-alignment: center;
+        text: freed;
+        font-family: T.disp;
+        font-size: 5.428571rem;
+        font-weight: 700;
+        letter-spacing: -0.19rem;
+    }
+    Label {
+        y: top + 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem + 5.428571rem + 0.714286rem;
+        width: M.w;
+        horizontal-alignment: center;
+        text: from;
+        font-size: 1.214286rem;
+        color: T.muted;
+    }
+    fs := FreeSpace {
+        x: (M.w - self.width) / 2;
+        y: top + 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem + 5.428571rem + 0.714286rem + 1.7rem + 2.428571rem;
+        pad-x: 2.285714rem;
+        pad-y: 1.285714rem;
+        gap: 2.285714rem;
+        arrow: 1.714286rem;
+        a-label: "FREE BEFORE";
+        a: before;
+        b-label: "FREE NOW";
+        b: now;
+    }
+    Card {
+        x: (M.w - 40rem) / 2;
+        y: fs.y + fs.height + 1.428571rem;
+        width: 40rem;
+        height: card-h;
+        VerticalLayout {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            alignment: start;
+            for r[i] in rows: Rectangle {
+                height: 3.071429rem + (i < rows.length - 1 ? 1px : 0);
+                if i < rows.length - 1: Rectangle {
+                    y: 3.071429rem;
+                    height: 1px;
+                    background: T.line;
+                }
+                NameLine {
+                    x: 1.428571rem;
+                    base: 0.857143rem + 1.063571rem;
+                    name: r.name;
+                    slug: r.slug;
+                    size: 1rem;
+                }
+                Label {
+                    x: parent.width - 1.428571rem - self.preferred-width;
+                    y: 0.857143rem;
+                    text: r.size;
+                    font-family: T.tnum;
+                    font-weight: 600;
+                }
+            }
+        }
+    }
+    if hint.length > 0: Segments {
+        x: (M.w - self.width) / 2;
+        base: fs.y + fs.height + 1.428571rem + card-h + 1rem + 0.65rem + 0.36385 * 0.928571rem;
+        segs: hint;
+    }
+    HorizontalLayout {
+        x: (M.w - self.preferred-width) / 2;
+        y: top + col-h - 3.142857rem;
+        height: 3.142857rem;
+        spacing: 0.857143rem;
+        Button {
+            text: "Scan again";
+            kind: BtnKind.primary;
+            icon: BtnIcon.rescan;
+            pad: 2rem;
+            clicked => { root.rescan(); }
+        }
+        Button {
+            text: "Quit";
+            pad: 2rem;
+            clicked => { root.quit(); }
+        }
+    }
+}
+
+export component PartialScreen inherits Rectangle {
+    in property <string> freed;
+    in property <string> from;
+    in property <string> lede;
+    in property <string> before;
+    in property <string> now;
+    in property <[FailRow]> failures;
+    in property <[LineRow]> deleted;
+    in property <string> deleted-title;
+    in property <string> retry-label;
+    callback show(int);
+    callback rescan();
+    callback retry();
+    head := Head {
+        kind: Eyebrow.tag-warn;
+        tag: "FINISHED WITH ERRORS";
+        big: freed;
+        small: from;
+        lede: lede;
+        fs-a-label: "FREE BEFORE";
+        fs-a: before;
+        fs-b-label: "FREE NOW";
+        fs-b: now;
+    }
+    property <length> fail-h: 2px + 3.428571rem + failures.length * (1.285714rem + 1.142857rem + 0.285714rem + 1.357143rem + 1.285714rem) + max(0, failures.length - 1) * 1px;
+    Card {
+        x: M.gutter;
+        y: head.bottom;
+        width: M.w - 2 * M.gutter;
+        height: fail-h;
+        ListTop {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            left: "Not deleted · " + failures.length;
+            tint: T.danger-ink;
+            weight: 600;
+        }
+        VerticalLayout {
+            x: 1px;
+            y: 3.5rem;
+            width: parent.width - 2px;
+            alignment: start;
+            for f[i] in failures: Rectangle {
+                height: 1.285714rem + 1.142857rem + 0.285714rem + 1.357143rem + 1.285714rem + (i < failures.length - 1 ? 1px : 0);
+                if i < failures.length - 1: Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: T.line;
+                }
+                Rectangle {
+                    x: 1.428571rem;
+                    y: 1.285714rem;
+                    width: 2rem;
+                    height: 2rem;
+                    border-radius: 1rem;
+                    background: T.danger-tint;
+                    Icon {
+                        x: 0.428571rem;
+                        y: 0.428571rem;
+                        sw: 2;
+                        stroke: T.danger;
+                        commands: "M4 4l8 8M12 4l-8 8";
+                    }
+                }
+                Mono {
+                    x: 4.571429rem;
+                    y: 1.285714rem;
+                    lh: 16 / 13.5;
+                    width: parent.width - 4.571429rem - show-btn.width - 1.142857rem - 5.428571rem - 1.142857rem - 1.428571rem;
+                    overflow: elide;
+                    text: f.path;
+                    font-size: 0.964286rem;
+                }
+                Tag {
+                    x: 4.571429rem;
+                    y: 1.285714rem + 1.142857rem + 0.285714rem - 0.5px;
+                    kind: TagKind.bad;
+                    text: f.reason;
+                }
+                Label {
+                    x: 4.571429rem + reason-w.preferred-width + 1.285714rem + 0.571429rem;
+                    y: 1.285714rem + 1.142857rem + 0.285714rem + (1.357143rem - self.height) / 2;
+                    text: f.detail;
+                    font-size: 0.892857rem;
+                    color: T.muted;
+                }
+                reason-w := Label {
+                    visible: false;
+                    text: f.reason;
+                    font-size: 0.785714rem;
+                    font-weight: 600;
+                    letter-spacing: 0.22px;
+                }
+                Label {
+                    x: show-btn.x - 1.142857rem - self.width;
+                    y: 1.285714rem;
+                    width: 5.428571rem;
+                    horizontal-alignment: right;
+                    text: f.size;
+                    font-family: T.tnum;
+                    font-weight: 600;
+                }
+                show-btn := Button {
+                    x: parent.width - 1.428571rem - self.width;
+                    y: 1.285714rem;
+                    height: 2.571429rem;
+                    pad: 0.857143rem;
+                    font-size: 0.928571rem;
+                    text: "Show in Finder";
+                    clicked => { root.show(i); }
+                }
+            }
+        }
+    }
+    Card {
+        x: M.gutter;
+        y: head.bottom + fail-h + 1.142857rem;
+        width: M.w - 2 * M.gutter;
+        height: 2px + 3.428571rem + deleted.length * 3.071429rem + max(0, deleted.length - 1) * 1px;
+        visible: deleted.length > 0;
+        ListTop {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            left: deleted-title;
+            tint: T.teal-ink;
+            weight: 600;
+        }
+        VerticalLayout {
+            x: 1px;
+            y: 3.5rem;
+            width: parent.width - 2px;
+            alignment: start;
+            for r[i] in deleted: Rectangle {
+                height: 3.071429rem + (i < deleted.length - 1 ? 1px : 0);
+                if i < deleted.length - 1: Rectangle {
+                    y: 3.071429rem;
+                    height: 1px;
+                    background: T.line;
+                }
+                line := NameLine {
+                    x: 1.428571rem;
+                    base: 0.857143rem + 1.063571rem;
+                    name: r.name;
+                    slug: r.slug;
+                    size: 1rem;
+                }
+                BText {
+                    x: 1.428571rem + name-w.preferred-width + 0.714286rem + slug-w.preferred-width + 0.857143rem;
+                    base: 0.857143rem + 1.063571rem;
+                    text: r.note;
+                    font-size: 0.892857rem;
+                    color: T.muted;
+                }
+                name-w := Label {
+                    visible: false;
+                    text: r.name;
+                    font-weight: 600;
+                }
+                slug-w := Mono {
+                    visible: false;
+                    text: r.slug;
+                }
+                Label {
+                    x: parent.width - 1.428571rem - self.preferred-width;
+                    y: 0.857143rem;
+                    text: r.size;
+                    font-family: T.tnum;
+                    font-weight: 600;
+                }
+            }
+        }
+    }
+    Footer {
+        Label {
+            x: M.gutter;
+            y: 2.821429rem - self.height / 2;
+            text: "Fix the cause, then retry only the folders that failed.";
+            font-size: 0.964286rem;
+            color: T.muted;
+        }
+        HorizontalLayout {
+            x: M.w - M.gutter - self.preferred-width;
+            y: 2.821429rem - 1.571429rem;
+            height: 3.142857rem;
+            spacing: 0.857143rem;
+            Button {
+                text: "Scan again";
+                pad: 1.714286rem;
+                clicked => { root.rescan(); }
+            }
+            Button {
+                text: retry-label;
+                kind: BtnKind.primary;
+                icon: BtnIcon.rescan;
+                pad: 1.714286rem;
+                clicked => { root.retry(); }
+            }
+        }
+    }
+}
+
+export component SettingsScreen inherits Rectangle {
+    in property <[RootRow]> roots;
+    in property <[string]> keep;
+    callback toggle-root(int);
+    callback add-folder();
+    callback remove-keep(int);
+    property <length> top: 3.714286rem + 1.857143rem;
+    // The intro is a <p> in the mockup and keeps its default 1rem bottom margin.
+    property <length> roots-y: top + 2.671429rem + 0.571429rem + 1.4rem + 1rem + 1.571429rem;
+    property <length> roots-h: 2px + roots.length * 4.571429rem + 4.571429rem;
+    property <length> keep-y: roots-y + 1.382857rem + 0.714286rem + roots-h + 1.571429rem;
+    property <length> keep-h: 2px + keep.length * 3.5rem - (keep.length > 0 ? 1px : 0);
+    property <length> lock-y: keep-y + 1.382857rem + (keep.length > 0 ? 0.714286rem + keep-h : 0) + 1.571429rem;
+    Label {
+        x: M.gutter;
+        y: top;
+        lh: 1.1;
+        text: "Where Cleaner looks";
+        font-family: T.disp;
+        font-size: 2.428571rem;
+        font-weight: 700;
+        letter-spacing: -0.85px;
+    }
+    Segments {
+        x: M.gutter;
+        base: top + 2.671429rem + 0.571429rem + 0.7rem + 0.36385 * 1rem;
+        font-size: 1rem;
+        segs: [{ text: "Changes apply on the next scan. They are saved to " }, { text: "~/.config/cleaner/config.toml", code: true }, { text: ", the same file the command line reads." }];
+    }
+    Label {
+        x: M.gutter;
+        y: roots-y;
+        lh: 1.21;
+        text: "Search folders";
+        font-family: T.disp;
+        font-size: 1.142857rem;
+        font-weight: 700;
+        letter-spacing: -0.16px;
+    }
+    Card {
+        x: M.gutter;
+        y: roots-y + 1.382857rem + 0.714286rem;
+        width: M.w - 2 * M.gutter;
+        height: roots-h;
+        VerticalLayout {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            alignment: start;
+            for r[i] in roots: Rectangle {
+                height: 4.571429rem;
+                Rectangle {
+                    y: 4.5rem;
+                    height: 1px;
+                    background: T.line;
+                }
+                Switch {
+                    x: 1.428571rem;
+                    y: (4.5rem - 1.857143rem) / 2;
+                    on: r.on;
+                    label: "Search " + r.path;
+                    toggled => { root.toggle-root(i); }
+                }
+                Mono {
+                    x: 5.714286rem;
+                    y: 1rem;
+                    lh: 1.164;
+                    text: r.path;
+                    font-size: 1rem;
+                }
+                Label {
+                    x: 5.714286rem;
+                    y: 1rem + 1.142857rem + 2px;
+                    text: r.note;
+                    font-size: 0.892857rem;
+                    color: T.muted;
+                }
+            }
+            Rectangle {
+                height: 4.571429rem;
+                Label {
+                    x: 1.428571rem;
+                    y: (4.571429rem - self.height) / 2;
+                    text: "Network shares, read-only disk images and Time Machine disks are never searched.";
+                    font-size: 0.892857rem;
+                    color: T.muted;
+                }
+                Button {
+                    x: parent.width - 1.428571rem - self.width;
+                    y: 1rem;
+                    height: 2.571429rem;
+                    pad: 0.857143rem;
+                    font-size: 0.928571rem;
+                    text: "Add folder…";
+                    clicked => { root.add-folder(); }
+                }
+            }
+        }
+    }
+    BText {
+        x: M.gutter;
+        base: keep-y + 0.691429rem + 0.36385 * 1.142857rem;
+        text: "Always keep";
+        font-family: T.disp;
+        font-size: 1.142857rem;
+        font-weight: 700;
+        letter-spacing: -0.16px;
+    }
+    BText {
+        x: M.gutter + keep-w.preferred-width;
+        base: keep-y + 0.691429rem + 0.36385 * 1.142857rem;
+        text: " · " + keep.length;
+        font-family: T.disp;
+        font-size: 1.142857rem;
+        font-weight: 500;
+        color: T.muted;
+    }
+    keep-w := Label {
+        visible: false;
+        text: "Always keep";
+        font-family: T.disp;
+        font-size: 1.142857rem;
+        font-weight: 700;
+        letter-spacing: -0.16px;
+    }
+    BText {
+        x: M.w - M.gutter - self.width;
+        base: keep-y + 0.691429rem + 0.36385 * 1.142857rem;
+        text: "Never offered for deletion";
+        font-size: 0.928571rem;
+        color: T.muted;
+    }
+    if keep.length > 0: Card {
+        x: M.gutter;
+        y: keep-y + 1.382857rem + 0.714286rem;
+        width: M.w - 2 * M.gutter;
+        height: keep-h;
+        VerticalLayout {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            alignment: start;
+            for k[i] in keep: Rectangle {
+                height: 3.5rem - (i == keep.length - 1 ? 1px : 0);
+                if i < keep.length - 1: Rectangle {
+                    y: 3.428571rem;
+                    height: 1px;
+                    background: T.line;
+                }
+                Mono {
+                    x: 1.428571rem;
+                    y: (3.428571rem - self.height) / 2;
+                    lh: 1.164;
+                    text: k;
+                    font-size: 0.928571rem;
+                }
+                Button {
+                    x: parent.width - 0.571429rem - self.width;
+                    y: 0.428571rem;
+                    height: 2.571429rem;
+                    kind: BtnKind.text;
+                    font-size: 0.928571rem;
+                    text: "Remove";
+                    clicked => { root.remove-keep(i); }
+                }
+            }
+        }
+    }
+    Rectangle {
+        x: M.gutter;
+        y: lock-y;
+        width: M.w - 2 * M.gutter;
+        height: 1rem + 2 * 1.3rem + 1rem;
+        border-radius: 0.857143rem;
+        background: T.seg-bg;
+        Rectangle {
+            x: 1.285714rem;
+            y: 1.071429rem;
+            width: 1.428571rem;
+            height: 1.428571rem;
+            Path {
+                width: 1.428571rem;
+                height: 1.428571rem;
+                viewbox-width: 16;
+                viewbox-height: 16;
+                stroke: T.muted;
+                stroke-width: 1.75px;
+                fill: transparent;
+                commands: "M5 7h6a1.5 1.5 0 0 1 1.5 1.5v3.5a1.5 1.5 0 0 1 -1.5 1.5h-6a1.5 1.5 0 0 1 -1.5 -1.5v-3.5a1.5 1.5 0 0 1 1.5 -1.5zM5.5 7V5a2.5 2.5 0 015 0v2";
+            }
+        }
+        for line[i] in ["Built in and locked: Documents, Desktop, Downloads, Pictures, Movies, Music, Library, Applications and Public are always refused, as are symlinks", "and disk roots."]: Label {
+            x: 3.714286rem;
+            y: 1rem + i * 1.3rem;
+            text: line;
+            font-size: 0.928571rem;
+            color: T.muted;
+        }
+    }
+}
