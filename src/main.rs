@@ -9,7 +9,7 @@ use clap::Parser;
 
 use cleaner::clean::{self, Scope};
 use cleaner::settings::{CONFIG_PATH, Settings};
-use cleaner::stream::{self, Emitter, ScanPlan};
+use cleaner::stream::{self, Emitter, OnGone, ScanPlan};
 use cleaner::types::{Group, Rule};
 use cleaner::util::{Level, human_size, print_log};
 use cleaner::{config, scan, volumes};
@@ -198,13 +198,14 @@ fn read_paths() -> Vec<PathBuf> {
 }
 
 fn run_json(cli: &Cli, home: &Path, mounts: Vec<PathBuf>, roots: &[PathBuf], rules: &[Rule], keep: &[PathBuf]) -> Result<(), String> {
-    let out = Emitter::new(io::stdout());
     let free = || volumes::free_bytes(home).unwrap_or(0);
     if !cli.delete {
+        let out = Emitter::new(io::stdout(), OnGone::Exit);
         let plan = ScanPlan { home, free: free(), roots, disks: &mounts };
         stream::scan_json(&plan, rules, keep, &out);
         return Ok(());
     }
+    let out = Emitter::new(io::stdout(), OnGone::Continue);
     let interrupted = on_interrupt()?;
     let scope = Scope { home: home.to_path_buf(), volumes: mounts };
     stream::delete_json(&scope, rules, keep, &read_paths(), free, &interrupted, &out);

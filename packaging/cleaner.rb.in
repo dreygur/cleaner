@@ -7,6 +7,7 @@ cask "cleaner" do
   desc "Frees disk space by deleting build output and caches that tools can rebuild"
   homepage "https://github.com/dreygur/cleaner"
 
+  depends_on arch: :arm64
   depends_on macos: ">= :big_sur"
 
   app "Cleaner.app"

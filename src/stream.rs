@@ -14,22 +14,35 @@ use crate::report::{DeleteEvent, FailReason, GroupReport, RuleKind, ScanEvent, T
 use crate::scan::{self, project_modified};
 use crate::types::{Group, Kind, Regen, Rule, Target};
 
+/// What to do once the reader of the events is gone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OnGone {
+    /// Keep working: a deletion finishes even after the window closes.
+    Continue,
+    /// Stop: a scan nobody will read is wasted work.
+    Exit,
+}
+
 /// Serializes events from any thread, one whole line at a time.
 pub struct Emitter<W: Write> {
     out: Mutex<W>,
+    on_gone: OnGone,
 }
 
 impl<W: Write> Emitter<W> {
-    pub fn new(out: W) -> Self {
-        Emitter { out: Mutex::new(out) }
+    pub fn new(out: W, on_gone: OnGone) -> Self {
+        Emitter { out: Mutex::new(out), on_gone }
     }
 
     /// A broken pipe means the UI went away; there is nobody left to tell.
     pub fn emit<T: serde::Serialize>(&self, event: &T) {
         let mut out = self.out.lock().unwrap();
-        if serde_json::to_writer(&mut *out, event).is_ok() {
-            let _ = out.write_all(b"\n");
-            let _ = out.flush();
+        let sent = serde_json::to_writer(&mut *out, event)
+            .map_err(io::Error::from)
+            .and_then(|_| out.write_all(b"\n"))
+            .and_then(|_| out.flush());
+        if self.on_gone == OnGone::Exit && sent.is_err_and(|e| e.kind() == io::ErrorKind::BrokenPipe) {
+            std::process::exit(0);
         }
     }
 
@@ -227,7 +240,7 @@ mod tests {
         let target = project(home.path(), "app");
         let roots = [home.path().to_path_buf()];
         let rules = config::rules(home.path(), &roots);
-        let out = Emitter::new(Vec::new());
+        let out = Emitter::new(Vec::new(), OnGone::Continue);
         let plan = ScanPlan { home: home.path(), free: 7, roots: &roots, disks: &[] };
 
         scan_json(&plan, &rules, &[], &out);
@@ -265,7 +278,7 @@ mod tests {
         let roots = [home.path().to_path_buf()];
         let rules = config::rules(home.path(), &roots);
         let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new() };
-        let out = Emitter::new(Vec::new());
+        let out = Emitter::new(Vec::new(), OnGone::Continue);
         let paths = [good.clone(), stray.clone(), gone.clone()];
 
         delete_json(&scope, &rules, &[], &paths, || 1, &AtomicBool::new(false), &out);
@@ -292,7 +305,7 @@ mod tests {
         let roots = [home.path().to_path_buf()];
         let rules = config::rules(home.path(), &roots);
         let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new() };
-        let out = Emitter::new(Vec::new());
+        let out = Emitter::new(Vec::new(), OnGone::Continue);
 
         delete_json(&scope, &rules, &[], std::slice::from_ref(&target), || 0, &AtomicBool::new(true), &out);
         let got: Vec<DeleteEvent> = events(out.into_inner());

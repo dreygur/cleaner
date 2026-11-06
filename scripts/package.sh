@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds Cleaner.app as a universal (arm64 + x86_64) bundle, signs it ad hoc,
-# zips it for a GitHub release and renders the Homebrew cask for that zip.
+# Builds Cleaner.app for Apple Silicon, signs it ad hoc, zips it for a
+# GitHub release and renders the Homebrew cask for that zip. Adding
+# x86_64-apple-darwin to TARGETS makes the bundle universal.
 #
 #   scripts/package.sh            -> dist/Cleaner.app, dist/Cleaner-<v>-macos.zip, dist/cleaner.rb
 #
@@ -11,7 +12,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 APP="$DIST/Cleaner.app"
-TARGETS=(aarch64-apple-darwin x86_64-apple-darwin)
+TARGETS=(aarch64-apple-darwin)
 BINARIES=(cleaner-ui cleaner)
 
 die() {
@@ -36,10 +37,13 @@ bundle() {
   local v="$1" b
   rm -rf "$APP"
   mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+  local t inputs
   for b in "${BINARIES[@]}"; do
-    lipo -create -output "$APP/Contents/MacOS/$b" \
-      "$ROOT/target/aarch64-apple-darwin/release/$b" \
-      "$ROOT/target/x86_64-apple-darwin/release/$b"
+    inputs=()
+    for t in "${TARGETS[@]}"; do
+      inputs+=("$ROOT/target/$t/release/$b")
+    done
+    lipo -create -output "$APP/Contents/MacOS/$b" "${inputs[@]}"
   done
   sed "s/@VERSION@/$v/g" "$ROOT/packaging/Info.plist" >"$APP/Contents/Info.plist"
   codesign --force --deep --sign - "$APP"
