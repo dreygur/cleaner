@@ -59,6 +59,8 @@ fn group_report(g: &Group) -> GroupReport {
     let kind = match g.rule.kind {
         Kind::Artifact => RuleKind::Artifact,
         Kind::Fixed => RuleKind::Fixed,
+        Kind::Temp => RuleKind::Temp,
+        Kind::Prune => RuleKind::Prune,
     };
     let targets = g
         .targets
@@ -126,7 +128,7 @@ pub fn reason(e: &CleanError) -> FailReason {
     match e {
         CleanError::Symlink(_) => FailReason::SymlinkRejected,
         CleanError::Protected(_) | CleanError::OutsideHome(_) => FailReason::Protected,
-        CleanError::NotDirectory(_) => FailReason::Other,
+        CleanError::NotDirectory(_) | CleanError::Command { .. } => FailReason::Other,
         CleanError::Stat { source, .. }
         | CleanError::Remove { source, .. }
         | CleanError::Empty { source, .. } => io_reason(source),
@@ -137,8 +139,8 @@ fn remove_one<W: Write + Send>(scope: &Scope, rule: &Rule, path: &Path, out: &Em
     out.emit(&DeleteEvent::Removing { rule: rule.id.to_string(), path: text(path) });
     // Measured here, just before removal, so the freed figure is the engine's
     // own and not whatever the caller last saw.
-    let target = Target { path: path.to_path_buf(), size: scan::dir_size(path) };
-    match clean::remove_target(scope, rule.kind, &target) {
+    let target = Target { path: path.to_path_buf(), size: scan::measure(rule, path) };
+    match clean::remove_target(scope, rule, &target) {
         Ok(()) => {
             out.emit(&DeleteEvent::Removed {
                 rule: rule.id.to_string(),
@@ -226,6 +228,15 @@ mod tests {
             .collect()
     }
 
+    // Temp and Prune rules read the real /tmp and run the real docker, so
+    // these tests keep to the rules that stay inside home.
+    fn home_rules(home: &Path, roots: &[PathBuf]) -> Vec<Rule> {
+        config::rules(home, roots)
+            .into_iter()
+            .filter(|r| matches!(r.kind, Kind::Artifact | Kind::Fixed))
+            .collect()
+    }
+
     fn project(root: &Path, name: &str) -> PathBuf {
         let dir = root.join(name);
         fs::create_dir_all(dir.join("target/debug")).unwrap();
@@ -239,7 +250,7 @@ mod tests {
         let home = tempfile::tempdir().unwrap();
         let target = project(home.path(), "app");
         let roots = [home.path().to_path_buf()];
-        let rules = config::rules(home.path(), &roots);
+        let rules = home_rules(home.path(), &roots);
         let out = Emitter::new(Vec::new(), OnGone::Continue);
         let plan = ScanPlan { home: home.path(), free: 7, roots: &roots, disks: &[] };
 
@@ -276,8 +287,8 @@ mod tests {
         fs::write(home.path().join("old/Cargo.toml"), "").unwrap();
 
         let roots = [home.path().to_path_buf()];
-        let rules = config::rules(home.path(), &roots);
-        let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new() };
+        let rules = home_rules(home.path(), &roots);
+        let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new(), temp: Vec::new() };
         let out = Emitter::new(Vec::new(), OnGone::Continue);
         let paths = [good.clone(), stray.clone(), gone.clone()];
 
@@ -303,8 +314,8 @@ mod tests {
         let home = tempfile::tempdir().unwrap();
         let target = project(home.path(), "app");
         let roots = [home.path().to_path_buf()];
-        let rules = config::rules(home.path(), &roots);
-        let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new() };
+        let rules = home_rules(home.path(), &roots);
+        let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new(), temp: Vec::new() };
         let out = Emitter::new(Vec::new(), OnGone::Continue);
 
         delete_json(&scope, &rules, &[], std::slice::from_ref(&target), || 0, &AtomicBool::new(true), &out);

@@ -6,6 +6,7 @@ use rayon::prelude::*;
 
 use crate::types::{Group, Kind, Rule, Target};
 use crate::walker::collect_artifacts_each;
+use crate::{container, temp};
 
 /// Sum of apparent file sizes under root. Symlinks count as their own size
 /// and are never followed.
@@ -33,11 +34,25 @@ pub fn dir_size(root: &Path) -> u64 {
 }
 
 fn collect_fixed(rule: &Rule) -> Vec<PathBuf> {
+    if rule.kind == Kind::Prune {
+        return rule.paths.clone();
+    }
     rule.paths
         .iter()
         .filter(|p| fs::symlink_metadata(p).is_ok_and(|m| m.is_dir()))
         .cloned()
         .collect()
+}
+
+/// Bytes removing path under rule would free: the whole tree for build
+/// output and caches, only the stale entries of a temp directory, and what
+/// the engine reports as reclaimable for a container CLI.
+pub fn measure(rule: &Rule, path: &Path) -> u64 {
+    match rule.kind {
+        Kind::Artifact | Kind::Fixed => dir_size(path),
+        Kind::Temp => temp::stale_size(path, SystemTime::now()),
+        Kind::Prune => container::reclaimable(path, rule.df).unwrap_or(0),
+    }
 }
 
 fn unix_secs(t: SystemTime) -> Option<u64> {
@@ -59,11 +74,11 @@ pub fn project_modified(target: &Path) -> Option<u64> {
         .max()
 }
 
-fn measure(paths: Vec<PathBuf>) -> Vec<Target> {
+fn measure_all(rule: &Rule, paths: Vec<PathBuf>) -> Vec<Target> {
     paths
         .into_par_iter()
         .map(|path| {
-            let size = dir_size(&path);
+            let size = measure(rule, &path);
             Target { path, size }
         })
         .collect()
@@ -74,7 +89,15 @@ fn group_of(rule: &Rule, paths: Vec<PathBuf>, keep: &[PathBuf]) -> Option<Group>
     if paths.is_empty() {
         return None;
     }
-    let targets = measure(paths);
+    let mut targets = measure_all(rule, paths);
+    // A temp dir with no leftovers, or an engine that is stopped or has
+    // nothing to prune, offers nothing.
+    if matches!(rule.kind, Kind::Temp | Kind::Prune) {
+        targets.retain(|t| t.size > 0);
+        if targets.is_empty() {
+            return None;
+        }
+    }
     let size = targets.iter().map(|t| t.size).sum();
     Some(Group { rule: rule.clone(), targets, size })
 }
@@ -89,7 +112,7 @@ pub fn scan_each(
     root_done: impl FnMut(&Path),
     mut emit: impl FnMut(&Rule, Option<Group>),
 ) {
-    for rule in rules.iter().filter(|r| r.kind == Kind::Fixed) {
+    for rule in rules.iter().filter(|r| r.kind != Kind::Artifact) {
         emit(rule, group_of(rule, collect_fixed(rule), keep));
     }
 
@@ -123,6 +146,9 @@ mod tests {
             roots: vec![root.to_path_buf()],
             prune: Vec::new(),
             paths: Vec::new(),
+            commands: &[],
+            df: &[],
+            safety: crate::types::Safety::Safe,
             regen: crate::types::Regen::Run(""),
         }
     }

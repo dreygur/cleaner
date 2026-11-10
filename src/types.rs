@@ -11,6 +11,26 @@ pub enum Kind {
     /// Names absolute directories whose children are removed. The directory
     /// itself survives so tools that expect it keep working.
     Fixed,
+
+    /// Names system temp directories. Only entries owned by the user,
+    /// untouched for a while and holding no socket are removed, so running
+    /// programs keep their live files.
+    Temp,
+
+    /// Names a container engine CLI. Space is reclaimed by running its
+    /// prune `commands`, since images live inside a VM disk image that no
+    /// file deletion can shrink.
+    Prune,
+}
+
+/// Whether a rule runs when the CLI is not told which rules to run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Safety {
+    /// Runs by default.
+    Safe,
+    /// Runs only when named in `--only`, for data that is slow or
+    /// impossible to get back.
+    OptIn,
 }
 
 /// How deleted data comes back.
@@ -65,8 +85,18 @@ pub struct Rule {
     /// large to walk or holding data that only looks like a build.
     pub prune: Vec<PathBuf>,
 
-    /// Absolute directories emptied by a Fixed rule.
+    /// Absolute directories emptied by a Fixed rule or swept by a Temp
+    /// rule, or the engine binaries a Prune rule runs.
     pub paths: Vec<PathBuf>,
+
+    /// Argument lists a Prune rule runs, in order, against each binary.
+    pub commands: &'static [&'static [&'static str]],
+
+    /// `system df` row types whose reclaimable space a Prune rule frees.
+    pub df: &'static [&'static str],
+
+    /// Whether the CLI runs this rule without being asked by name.
+    pub safety: Safety,
 
     /// How the deleted data comes back, so the report carries its own undo
     /// instructions.

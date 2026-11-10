@@ -79,8 +79,8 @@ fn reason(r: FailReason) -> (&'static str, &'static str) {
 
 fn friction_tag(id: &str) -> &'static str {
     match id {
-        "cargo-registry" => "Needs network to restore · not in Select all",
-        "trash" => "Cannot be restored · not in Select all",
+        "cargo-registry" | "docker-images" | "podman-images" => "Needs network to restore · not in Select all",
+        "trash" | "docker-volumes" | "podman-volumes" => "Cannot be restored · not in Select all",
         _ => "",
     }
 }

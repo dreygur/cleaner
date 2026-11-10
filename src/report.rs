@@ -12,6 +12,10 @@ pub enum RuleKind {
     Artifact,
     /// A known cache, emptied but kept.
     Fixed,
+    /// A system temp directory, cleared of stale entries.
+    Temp,
+    /// A container engine, pruned through its CLI.
+    Prune,
 }
 
 /// One concrete directory a rule matched.

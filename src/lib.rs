@@ -3,12 +3,14 @@
 
 pub mod clean;
 pub mod config;
+mod container;
 pub mod error;
 pub mod remove;
 pub mod report;
 pub mod scan;
 pub mod settings;
 pub mod stream;
+mod temp;
 pub mod types;
 pub mod util;
 pub mod volumes;

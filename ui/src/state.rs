@@ -9,8 +9,15 @@
 use cleaner::report::{DeleteEvent, FailReason, GroupReport, ScanEvent};
 
 /// Rules that get an amber tag and stay out of "Select all safe groups":
-/// one needs network to restore, the other cannot be restored.
-pub const FRICTION_IDS: [&str; 2] = ["cargo-registry", "trash"];
+/// they need network to restore or cannot be restored.
+pub const FRICTION_IDS: [&str; 6] = [
+    "cargo-registry",
+    "trash",
+    "docker-images",
+    "docker-volumes",
+    "podman-images",
+    "podman-volumes",
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {

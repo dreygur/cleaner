@@ -1,11 +1,12 @@
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use rayon::prelude::*;
 
 use crate::error::{CleanError, Result};
-use crate::remove;
+use crate::{container, remove, temp};
 use crate::types::{Group, Kind, Rule, Target};
 use crate::util::clean_path;
 use crate::walker::GIT_DIR;
@@ -18,11 +19,12 @@ const PROTECTED_NAMES: &[&str] = &[
 ];
 
 /// Everywhere deletion may happen: the home directory, under its own guards,
-/// and the mount points of attached disks.
+/// the mount points of attached disks, and the system temp directories.
 #[derive(Clone, Debug)]
 pub struct Scope {
     pub home: PathBuf,
     pub volumes: Vec<PathBuf>,
+    pub temp: Vec<PathBuf>,
 }
 
 /// Path relative to base, or None when path is base itself or lies outside
@@ -49,7 +51,8 @@ fn validate(scope: &Scope, path: &Path) -> Result<()> {
         return Err(CleanError::Protected(clean));
     }
     let rel = within(&scope.home, &clean);
-    if rel.is_none() && !on_volume(&scope.volumes, &clean) {
+    let is_temp = scope.temp.iter().any(|t| clean_path(t) == clean);
+    if rel.is_none() && !is_temp && !on_volume(&scope.volumes, &clean) {
         return Err(CleanError::OutsideHome(clean));
     }
     if rel.is_some_and(|r| PROTECTED_NAMES.iter().any(|n| r == Path::new(n))) {
@@ -123,7 +126,7 @@ pub fn resolve<'r>(rules: &'r [Rule], keep: &[PathBuf], path: &Path) -> Option<&
     let parent = path.parent()?;
 
     rules.iter().find(|r| match r.kind {
-        Kind::Fixed => r.paths.iter().any(|p| clean_path(p) == path),
+        Kind::Fixed | Kind::Temp | Kind::Prune => r.paths.iter().any(|p| clean_path(p) == path),
         Kind::Artifact => {
             r.dir == name
                 && (r.marker.is_empty() || parent.join(r.marker).exists())
@@ -133,16 +136,22 @@ pub fn resolve<'r>(rules: &'r [Rule], keep: &[PathBuf], path: &Path) -> Option<&
     })
 }
 
-/// Validates target again and removes it.
-pub fn remove_target(scope: &Scope, kind: Kind, target: &Target) -> Result<()> {
-    validate(scope, &target.path)?;
+/// Validates target again and removes it. A Prune target is an engine
+/// binary that resolve already matched to the rule, so it runs the rule's
+/// commands instead of passing the directory checks.
+pub fn remove_target(scope: &Scope, rule: &Rule, target: &Target) -> Result<()> {
+    if rule.kind != Kind::Prune {
+        validate(scope, &target.path)?;
+    }
     let path = target.path.clone();
 
     // Fixed caches keep their directory so the owning tool finds it next
     // run; build artifacts are recreated wholesale, so the directory goes too.
-    match kind {
+    match rule.kind {
         Kind::Fixed => remove::contents(&target.path).map_err(|source| CleanError::Empty { path, source }),
         Kind::Artifact => remove::tree(&target.path).map_err(|source| CleanError::Remove { path, source }),
+        Kind::Temp => temp::clear(&target.path, SystemTime::now()).map_err(|source| CleanError::Empty { path, source }),
+        Kind::Prune => container::prune(&target.path, rule.commands),
     }
 }
 
@@ -152,7 +161,7 @@ pub fn group(scope: &Scope, group: &Group) -> (u64, Vec<CleanError>) {
     let results: Vec<(u64, Option<CleanError>)> = group
         .targets
         .par_iter()
-        .map(|t| match remove_target(scope, group.rule.kind, t) {
+        .map(|t| match remove_target(scope, &group.rule, t) {
             Ok(()) => (t.size, None),
             Err(e) => (0, Some(e)),
         })
@@ -175,7 +184,7 @@ mod tests {
     }
 
     fn home_scope(home: &Path) -> Scope {
-        Scope { home: home.to_path_buf(), volumes: Vec::new() }
+        Scope { home: home.to_path_buf(), volumes: Vec::new(), temp: Vec::new() }
     }
 
     fn rule(kind: Kind) -> Rule {
@@ -188,6 +197,9 @@ mod tests {
             roots: Vec::new(),
             prune: Vec::new(),
             paths: Vec::new(),
+            commands: &[],
+            df: &[],
+            safety: crate::types::Safety::Safe,
             regen: crate::types::Regen::Run(""),
         }
     }
@@ -282,11 +294,58 @@ mod tests {
     fn validate_allows_attached_disk() {
         let (home, disk) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         let target = mock_dir(&[disk.path(), Path::new("proj/target")]);
-        let scope = Scope { home: home.path().to_path_buf(), volumes: vec![disk.path().to_path_buf()] };
+        let scope = Scope { home: home.path().to_path_buf(), volumes: vec![disk.path().to_path_buf()], temp: Vec::new() };
 
         assert!(validate(&scope, &target).is_ok());
         let err = validate(&scope, disk.path());
         assert!(matches!(err, Err(CleanError::OutsideHome(_))), "{err:?}");
+    }
+
+    // A temp dir is allowed as a whole, never anything inside it.
+    #[test]
+    fn validate_allows_temp_dir_only() {
+        let (home, tmp) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let inner = mock_dir(&[tmp.path(), Path::new("inner")]);
+        let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new(), temp: vec![tmp.path().to_path_buf()] };
+
+        assert!(validate(&scope, tmp.path()).is_ok());
+        let err = validate(&scope, &inner);
+        assert!(matches!(err, Err(CleanError::OutsideHome(_))), "{err:?}");
+    }
+
+    #[test]
+    fn group_sweeps_only_stale_temp_entries() {
+        let (home, tmp) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        fs::write(tmp.path().join("fresh.log"), b"x").unwrap();
+        let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new(), temp: vec![tmp.path().to_path_buf()] };
+        let g = Group {
+            rule: rule(Kind::Temp),
+            targets: vec![Target { path: tmp.path().to_path_buf(), size: 1 }],
+            size: 1,
+        };
+
+        let (_, failures) = group(&scope, &g);
+        assert!(failures.is_empty(), "{failures:?}");
+        assert!(tmp.path().join("fresh.log").exists(), "fresh temp file removed");
+    }
+
+    #[test]
+    fn prune_target_runs_the_rule_commands() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let home = tempfile::tempdir().unwrap();
+        let log = home.path().join("log");
+        let bin = home.path().join("docker");
+        fs::write(&bin, format!("#!/bin/sh\necho \"$@\" >> {}\n", log.display())).unwrap();
+        fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let mut r = rule(Kind::Prune);
+        r.paths = vec![bin.clone()];
+        r.commands = &[&["image", "prune", "-af"]];
+        assert!(resolve(std::slice::from_ref(&r), &[], &bin).is_some());
+
+        remove_target(&home_scope(home.path()), &r, &Target { path: bin, size: 0 }).unwrap();
+        assert_eq!(fs::read_to_string(&log).unwrap(), "image prune -af\n");
     }
 
     #[test]

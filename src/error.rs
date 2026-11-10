@@ -31,6 +31,10 @@ pub enum CleanError {
 
     #[error("empty {path:?}: {source}")]
     Empty { path: PathBuf, source: io::Error },
+
+    /// A container engine prune command exited non zero.
+    #[error("{path:?} {args}: {stderr}")]
+    Command { path: PathBuf, args: String, stderr: String },
 }
 
 pub type Result<T> = std::result::Result<T, CleanError>;

@@ -10,7 +10,7 @@ use clap::Parser;
 use cleaner::clean::{self, Scope};
 use cleaner::settings::{CONFIG_PATH, Settings};
 use cleaner::stream::{self, Emitter, OnGone, ScanPlan};
-use cleaner::types::{Group, Rule};
+use cleaner::types::{Group, Rule, Safety};
 use cleaner::util::{Level, human_size, print_log};
 use cleaner::{config, scan, volumes};
 
@@ -90,6 +90,16 @@ fn select_rules(all: Vec<Rule>, only: &BTreeSet<String>, skip: &BTreeSet<String>
     all.into_iter()
         .filter(|r| only.is_empty() || only.contains(r.id))
         .filter(|r| !skip.contains(r.id))
+        .collect()
+}
+
+/// Opt in rules run in the terminal only when named in --only, so --yes
+/// never prunes images or volumes by itself. The UI still sees them; it
+/// leaves them out of "Select all".
+fn drop_opt_in(rules: Vec<Rule>, only: &BTreeSet<String>) -> Vec<Rule> {
+    rules
+        .into_iter()
+        .filter(|r| r.safety == Safety::Safe || only.contains(r.id))
         .collect()
 }
 
@@ -207,7 +217,7 @@ fn run_json(cli: &Cli, home: &Path, mounts: Vec<PathBuf>, roots: &[PathBuf], rul
     }
     let out = Emitter::new(io::stdout(), OnGone::Continue);
     let interrupted = on_interrupt()?;
-    let scope = Scope { home: home.to_path_buf(), volumes: mounts };
+    let scope = Scope { home: home.to_path_buf(), volumes: mounts, temp: config::temp_dirs() };
     stream::delete_json(&scope, rules, keep, &read_paths(), free, &interrupted, &out);
     Ok(())
 }
@@ -232,6 +242,7 @@ fn run(cli: Cli) -> Result<(), String> {
     if cli.json {
         return run_json(&cli, &home, mounts, &roots, &rules, &settings.keep);
     }
+    let rules = drop_opt_in(rules, &only);
     if rules.is_empty() {
         print_log("no rules selected", Level::Warn);
         return Ok(());
@@ -258,7 +269,7 @@ fn run(cli: Cli) -> Result<(), String> {
     }
 
     let interrupted = on_interrupt()?;
-    let scope = Scope { home: home.clone(), volumes: mounts };
+    let scope = Scope { home: home.clone(), volumes: mounts, temp: config::temp_dirs() };
     let freed = sweep(&scope, &groups, cli.yes, &interrupted);
     print_log(&format!("freed {}, now {} free", human_size(freed), free_text(&home)), Level::Info);
     Ok(())
@@ -301,5 +312,19 @@ mod tests {
         let ids: Vec<&str> = chosen.iter().map(|r| r.id).collect();
         assert_eq!(ids, ["trash"]);
         assert!(check_ids(&all, "only", &parse_list("nope")).is_err());
+    }
+
+    #[test]
+    fn opt_in_rules_need_naming() {
+        let all = config::rules(Path::new("/h"), &[]);
+        let none = BTreeSet::new();
+
+        let ids: Vec<&str> = drop_opt_in(all.clone(), &none).iter().map(|r| r.id).collect();
+        assert!(ids.contains(&"docker-cache"));
+        assert!(!ids.contains(&"docker-volumes"));
+
+        let only = parse_list("docker-volumes");
+        let ids: Vec<&str> = drop_opt_in(all, &only).iter().map(|r| r.id).collect();
+        assert!(ids.contains(&"docker-volumes"));
     }
 }
