@@ -412,14 +412,14 @@ export component ReviewScreen inherits Rectangle {
         }
         Segments {
             x: dimmed ? M.gutter : M.gutter + clear-w.preferred-width + 1.714286rem + 1.142857rem;
-            base: 2.821429rem - 0.675rem + 0.3375rem + 0.36385 * 0.964286rem;
+            base: 2.821429rem + 0.36385 * 0.964286rem;
             font-size: 0.964286rem;
             segs: dimmed ? [{ text: folders, bold: true }] : [{ text: folders, bold: true }, { text: " " + groups-text }];
         }
         // Behind the dialog the footer is a flex row: a 1.142857rem gap, not a space.
         if dimmed: BText {
             x: M.gutter + folders-w.preferred-width + 1.142857rem;
-            base: 2.821429rem - 0.675rem + 0.3375rem + 0.36385 * 0.964286rem;
+            base: 2.821429rem + 0.36385 * 0.964286rem;
             text: groups-text;
             font-size: 0.964286rem;
             color: T.muted;
@@ -459,7 +459,11 @@ export component ConfirmDialog inherits Rectangle {
     callback delete();
     property <length> text-h: 2.135714rem + 0.714286rem + 2 * 1.45rem;
     property <length> table-h: 2px + rows.length * 4.507143rem + max(0, rows.length - 1) * 1px;
-    property <length> modal-h: 2.142857rem + max(3.428571rem, text-h) + 1.571429rem + table-h + 1rem + 2 * 1.3rem + 1.857143rem + 3.142857rem + 2.142857rem;
+    property <length> chrome-h: 2.142857rem + max(3.428571rem, text-h) + 1.571429rem + 1rem + 2 * 1.3rem + 1.857143rem + 3.142857rem + 2.142857rem;
+    // Many groups would push the modal past the window, so the table stops
+    // a title bar's height short of either edge and scrolls instead.
+    property <length> view-h: min(table-h, max(4.507143rem, M.h - 2 * 3.714286rem - chrome-h));
+    property <length> modal-h: chrome-h + view-h;
     background: #16181D80;
     TouchArea { }
     Rectangle {
@@ -509,49 +513,54 @@ export component ConfirmDialog inherits Rectangle {
             x: 2.142857rem;
             y: 2.142857rem + max(3.428571rem, text-h) + 1.571429rem;
             width: 34.285714rem;
-            height: table-h;
+            height: view-h;
             border-radius: 0.857143rem;
             border-width: 1px;
             border-color: T.line;
             clip: true;
-            VerticalLayout {
+            Flickable {
                 x: 1px;
                 y: 1px;
                 width: parent.width - 2px;
-                alignment: start;
-                for r[i] in rows: Rectangle {
-                    height: 4.507143rem + (i < rows.length - 1 ? 1px : 0);
-                    if i < rows.length - 1: Rectangle {
-                        y: 4.507143rem;
-                        height: 1px;
-                        background: T.line;
-                    }
-                    Label {
-                        x: 1.142857rem;
-                        y: 0.857143rem;
-                        text: r.name;
-                        font-weight: 600;
-                    }
-                    RegenNote {
-                        x: 1.142857rem;
-                        y: 0.857143rem + 1.4rem + 2px;
-                        lead: r.note;
-                        regen: r.regen;
-                        command: r.command;
-                    }
-                    Label {
-                        x: parent.width - 1.142857rem - self.preferred-width;
-                        y: (4.507143rem - self.height) / 2;
-                        text: r.size;
-                        font-family: T.tnum;
-                        font-weight: 600;
+                height: parent.height - 2px;
+                content-height: table-h - 2px;
+                VerticalLayout {
+                    width: parent.width;
+                    alignment: start;
+                    for r[i] in rows: Rectangle {
+                        height: 4.507143rem + (i < rows.length - 1 ? 1px : 0);
+                        if i < rows.length - 1: Rectangle {
+                            y: 4.507143rem;
+                            height: 1px;
+                            background: T.line;
+                        }
+                        Label {
+                            x: 1.142857rem;
+                            y: 0.857143rem;
+                            text: r.name;
+                            font-weight: 600;
+                        }
+                        RegenNote {
+                            x: 1.142857rem;
+                            y: 0.857143rem + 1.4rem + 2px;
+                            lead: r.note;
+                            regen: r.regen;
+                            command: r.command;
+                        }
+                        Label {
+                            x: parent.width - 1.142857rem - self.preferred-width;
+                            y: (4.507143rem - self.height) / 2;
+                            text: r.size;
+                            font-family: T.tnum;
+                            font-weight: 600;
+                        }
                     }
                 }
             }
         }
         for line[i] in ["Each path is checked again just before it is deleted. Anything that fails the", "check is skipped."]: Label {
             x: 2.142857rem;
-            y: 2.142857rem + max(3.428571rem, text-h) + 1.571429rem + table-h + 1rem + i * 1.3rem;
+            y: 2.142857rem + max(3.428571rem, text-h) + 1.571429rem + view-h + 1rem + i * 1.3rem;
             text: line;
             font-size: 0.928571rem;
             color: T.muted;
@@ -717,116 +726,124 @@ export component DoneScreen inherits Rectangle {
     callback quit();
     property <length> card-h: 2px + rows.length * 3.071429rem + max(0, rows.length - 1) * 1px;
     property <length> col-h: 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem + 5.428571rem + 0.714286rem + 1.7rem + 2.428571rem + fs.height + 1.428571rem + card-h + (hint.length > 0 ? 1rem + 1.3rem : 0) + 2.142857rem + 3.142857rem;
-    property <length> top: 3.714286rem + (M.h - 3.714286rem - col-h) / 2;
-    Rectangle {
-        x: (M.w - 5.142857rem) / 2;
-        y: top;
-        width: 5.142857rem;
-        height: 5.142857rem;
-        border-radius: 2.571429rem;
-        background: T.teal;
-        Icon {
-            x: 1.357143rem;
-            y: 1.357143rem;
-            size: 2.428571rem;
-            sw: 1.8;
-            stroke: white;
-            commands: "M3 8.5l3.2 3.2L13 4.5";
+    // Centered under the title bar while it fits; a long row list scrolls.
+    property <length> view-h: M.h - 3.714286rem;
+    property <length> top: max(1.714286rem, (view-h - col-h) / 2);
+    Flickable {
+        y: 3.714286rem;
+        width: M.w;
+        height: view-h;
+        content-height: max(view-h, col-h + 2 * 1.714286rem);
+        Rectangle {
+            x: (M.w - 5.142857rem) / 2;
+            y: top;
+            width: 5.142857rem;
+            height: 5.142857rem;
+            border-radius: 2.571429rem;
+            background: T.teal;
+            Icon {
+                x: 1.357143rem;
+                y: 1.357143rem;
+                size: 2.428571rem;
+                sw: 1.8;
+                stroke: white;
+                commands: "M3 8.5l3.2 3.2L13 4.5";
+            }
         }
-    }
-    Overline {
-        y: top + 5.142857rem + 1.714286rem;
-        width: M.w;
-        horizontal-alignment: center;
-        text: "DONE";
-        track: 0.09 * 0.821429rem;
-    }
-    Label {
-        y: top + 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem;
-        width: M.w;
-        lh: 1;
-        horizontal-alignment: center;
-        text: freed;
-        font-family: T.disp;
-        font-size: 5.428571rem;
-        font-weight: 700;
-        letter-spacing: -0.19rem;
-    }
-    Label {
-        y: top + 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem + 5.428571rem + 0.714286rem;
-        width: M.w;
-        horizontal-alignment: center;
-        text: from;
-        font-size: 1.214286rem;
-        color: T.muted;
-    }
-    fs := FreeSpace {
-        x: (M.w - self.width) / 2;
-        y: top + 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem + 5.428571rem + 0.714286rem + 1.7rem + 2.428571rem;
-        pad-x: 2.285714rem;
-        pad-y: 1.285714rem;
-        gap: 2.285714rem;
-        arrow: 1.714286rem;
-        a-label: "FREE BEFORE";
-        a: before;
-        b-label: "FREE NOW";
-        b: now;
-    }
-    Card {
-        x: (M.w - 40rem) / 2;
-        y: fs.y + fs.height + 1.428571rem;
-        width: 40rem;
-        height: card-h;
-        VerticalLayout {
-            x: 1px;
-            y: 1px;
-            width: parent.width - 2px;
-            alignment: start;
-            for r[i] in rows: Rectangle {
-                height: 3.071429rem + (i < rows.length - 1 ? 1px : 0);
-                if i < rows.length - 1: Rectangle {
-                    y: 3.071429rem;
-                    height: 1px;
-                    background: T.line;
-                }
-                NameLine {
-                    x: 1.428571rem;
-                    base: 0.857143rem + 1.063571rem;
-                    name: r.name;
-                    slug: r.slug;
-                    size: 1rem;
-                }
-                Label {
-                    x: parent.width - 1.428571rem - self.preferred-width;
-                    y: 0.857143rem;
-                    text: r.size;
-                    font-family: T.tnum;
-                    font-weight: 600;
+        Overline {
+            y: top + 5.142857rem + 1.714286rem;
+            width: M.w;
+            horizontal-alignment: center;
+            text: "DONE";
+            track: 0.09 * 0.821429rem;
+        }
+        Label {
+            y: top + 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem;
+            width: M.w;
+            lh: 1;
+            horizontal-alignment: center;
+            text: freed;
+            font-family: T.disp;
+            font-size: 5.428571rem;
+            font-weight: 700;
+            letter-spacing: -0.19rem;
+        }
+        Label {
+            y: top + 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem + 5.428571rem + 0.714286rem;
+            width: M.w;
+            horizontal-alignment: center;
+            text: from;
+            font-size: 1.214286rem;
+            color: T.muted;
+        }
+        fs := FreeSpace {
+            x: (M.w - self.width) / 2;
+            y: top + 5.142857rem + 1.714286rem + 1.15rem + 0.857143rem + 5.428571rem + 0.714286rem + 1.7rem + 2.428571rem;
+            pad-x: 2.285714rem;
+            pad-y: 1.285714rem;
+            gap: 2.285714rem;
+            arrow: 1.714286rem;
+            a-label: "FREE BEFORE";
+            a: before;
+            b-label: "FREE NOW";
+            b: now;
+        }
+        Card {
+            x: (M.w - 40rem) / 2;
+            y: fs.y + fs.height + 1.428571rem;
+            width: 40rem;
+            height: card-h;
+            VerticalLayout {
+                x: 1px;
+                y: 1px;
+                width: parent.width - 2px;
+                alignment: start;
+                for r[i] in rows: Rectangle {
+                    height: 3.071429rem + (i < rows.length - 1 ? 1px : 0);
+                    if i < rows.length - 1: Rectangle {
+                        y: 3.071429rem;
+                        height: 1px;
+                        background: T.line;
+                    }
+                    NameLine {
+                        x: 1.428571rem;
+                        base: 0.857143rem + 1.063571rem;
+                        name: r.name;
+                        slug: r.slug;
+                        size: 1rem;
+                    }
+                    Label {
+                        x: parent.width - 1.428571rem - self.preferred-width;
+                        y: 0.857143rem;
+                        text: r.size;
+                        font-family: T.tnum;
+                        font-weight: 600;
+                    }
                 }
             }
         }
-    }
-    if hint.length > 0: Segments {
-        x: (M.w - self.width) / 2;
-        base: fs.y + fs.height + 1.428571rem + card-h + 1rem + 0.65rem + 0.36385 * 0.928571rem;
-        segs: hint;
-    }
-    HorizontalLayout {
-        x: (M.w - self.preferred-width) / 2;
-        y: top + col-h - 3.142857rem;
-        height: 3.142857rem;
-        spacing: 0.857143rem;
-        Button {
-            text: "Scan again";
-            kind: BtnKind.primary;
-            icon: BtnIcon.rescan;
-            pad: 2rem;
-            clicked => { root.rescan(); }
+        if hint.length > 0: Segments {
+            x: (M.w - self.width) / 2;
+            base: fs.y + fs.height + 1.428571rem + card-h + 1rem + 0.65rem + 0.36385 * 0.928571rem;
+            segs: hint;
         }
-        Button {
-            text: "Quit";
-            pad: 2rem;
-            clicked => { root.quit(); }
+        HorizontalLayout {
+            x: (M.w - self.preferred-width) / 2;
+            y: top + col-h - 3.142857rem;
+            height: 3.142857rem;
+            spacing: 0.857143rem;
+            Button {
+                text: "Scan again";
+                kind: BtnKind.primary;
+                icon: BtnIcon.rescan;
+                pad: 2rem;
+                clicked => { root.rescan(); }
+            }
+            Button {
+                text: "Quit";
+                pad: 2rem;
+                clicked => { root.quit(); }
+            }
         }
     }
 }
