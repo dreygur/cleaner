@@ -253,7 +253,8 @@ impl App {
         self.screen = Screen::Deleting;
         self.stopping = false;
         self.free_before = self.free;
-        self.plan.iter().map(|p| p.path.clone()).collect()
+        // Engine rules share one binary path, so each line names its rule.
+        self.plan.iter().map(|p| format!("{}\t{}", p.rule, p.path)).collect()
     }
 
     /// Turns the selection into the path list for the engine.
@@ -282,8 +283,11 @@ impl App {
         }
     }
 
-    fn outcome(&mut self, path: &str, outcome: Outcome) {
-        if let Some(p) = self.plan.iter_mut().find(|p| p.path == path) {
+    /// A refusal before any rule matched carries no rule, so it lands on
+    /// the first entry with that path.
+    fn outcome(&mut self, rule: Option<&str>, path: &str, outcome: Outcome) {
+        let hit = self.plan.iter_mut().find(|p| p.path == path && rule.is_none_or(|r| p.rule == r));
+        if let Some(p) = hit {
             p.outcome = outcome;
         }
     }
@@ -291,9 +295,11 @@ impl App {
     pub fn on_delete(&mut self, event: DeleteEvent) {
         match event {
             DeleteEvent::Started { .. } | DeleteEvent::Stopped => {}
-            DeleteEvent::Removing { path, .. } => self.outcome(&path, Outcome::Removing),
-            DeleteEvent::Removed { path, freed, .. } => self.outcome(&path, Outcome::Removed(freed)),
-            DeleteEvent::Failed { path, reason, message, .. } => self.outcome(&path, Outcome::Failed(reason, message)),
+            DeleteEvent::Removing { rule, path } => self.outcome(Some(&rule), &path, Outcome::Removing),
+            DeleteEvent::Removed { rule, path, freed } => self.outcome(Some(&rule), &path, Outcome::Removed(freed)),
+            DeleteEvent::Failed { rule, path, reason, message } => {
+                self.outcome(rule.as_deref(), &path, Outcome::Failed(reason, message))
+            }
             DeleteEvent::Finished { free_after, .. } => {
                 self.free = free_after;
                 self.screen = if self.failed().next().is_some() { Screen::Partial } else { Screen::Done };
@@ -481,9 +487,11 @@ mod tests {
         let mut app = scanned();
         app.toggle_group(1);
         app.open_confirm();
-        let paths = app.confirm();
-        assert_eq!(paths.len(), 2);
+        let lines = app.confirm();
+        assert_eq!(lines.len(), 2);
         assert_eq!(app.screen, Screen::Deleting);
+        let paths: Vec<String> = app.plan.iter().map(|p| p.path.clone()).collect();
+        assert_eq!(lines[0], format!("node-modules\t{}", paths[0]));
 
         app.on_delete(DeleteEvent::Removed { rule: "node-modules".into(), path: paths[0].clone(), freed: 30 });
         app.on_delete(DeleteEvent::Failed {
@@ -498,7 +506,7 @@ mod tests {
         assert_eq!(app.free, 130);
 
         let retry = app.retry_failed();
-        assert_eq!(retry, [paths[1].clone()]);
+        assert_eq!(retry, [format!("node-modules\t{}", paths[1])]);
         app.on_delete(DeleteEvent::Removed { rule: "node-modules".into(), path: paths[1].clone(), freed: 10 });
         app.on_delete(DeleteEvent::Finished { freed: 10, free_after: 140 });
         assert_eq!(app.screen, Screen::Done);

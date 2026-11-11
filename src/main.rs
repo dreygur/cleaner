@@ -9,7 +9,7 @@ use clap::Parser;
 
 use cleaner::clean::{self, Scope};
 use cleaner::settings::{CONFIG_PATH, Settings};
-use cleaner::stream::{self, Emitter, OnGone, ScanPlan};
+use cleaner::stream::{self, Emitter, OnGone, Request, ScanPlan};
 use cleaner::types::{Group, Rule, Safety};
 use cleaner::util::{Level, human_size, print_log};
 use cleaner::{config, scan, volumes};
@@ -50,8 +50,9 @@ struct Cli {
     #[arg(long)]
     json: bool,
 
-    /// With --json: delete the paths read from stdin, one per line. Each
-    /// path must be one a scan would offer
+    /// With --json: delete the paths read from stdin, one per line, each
+    /// optionally prefixed by a rule id and a tab. Each path must be one a
+    /// scan would offer
     #[arg(long, requires = "json", conflicts_with_all = ["yes", "dry_run"])]
     delete: bool,
 }
@@ -197,13 +198,13 @@ fn on_interrupt() -> Result<Arc<AtomicBool>, String> {
     Ok(interrupted)
 }
 
-fn read_paths() -> Vec<PathBuf> {
+fn read_paths() -> Vec<Request> {
     io::stdin()
         .lock()
         .lines()
         .map_while(Result::ok)
         .filter(|l| !l.trim().is_empty())
-        .map(PathBuf::from)
+        .map(|l| Request::parse(&l))
         .collect()
 }
 

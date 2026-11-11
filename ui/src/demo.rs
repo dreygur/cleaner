@@ -101,19 +101,24 @@ fn selected() -> App {
     app.toggle_open(0);
     app.toggle_target(0, 0);
     app.toggle_target(0, 2);
-    app.toggle_group(1);
-    app
+    app.toggle_group(1);    app
 }
 
 fn deleting() -> (App, Vec<String>) {
     let mut app = selected();
     app.open_confirm();
-    let paths = app.confirm();
+    app.confirm();
+    let paths = app.plan.iter().map(|p| p.path.clone()).collect();
     (app, paths)
 }
 
+fn rule_of(app: &App, path: &str) -> String {
+    app.plan.iter().find(|p| p.path == path).map(|p| p.rule.clone()).unwrap_or_default()
+}
+
 fn removed(app: &mut App, path: &str, size: f64) {
-    app.on_delete(DeleteEvent::Removed { rule: String::new(), path: path.into(), freed: gib(size) });
+    let rule = rule_of(app, path);
+    app.on_delete(DeleteEvent::Removed { rule, path: path.into(), freed: gib(size) });
 }
 
 fn failed(app: &mut App, path: &str, reason: FailReason) {
@@ -151,7 +156,7 @@ pub fn app_for(name: &str) -> Option<App> {
             removed(&mut app, &paths[0], 5.9);
             removed(&mut app, &paths[1], 3.6);
             removed(&mut app, &nm("web"), 2.9);
-            app.on_delete(DeleteEvent::Removing { rule: String::new(), path: nm("old-api") });
+            app.on_delete(DeleteEvent::Removing { rule: rule_of(&app, &nm("old-api")), path: nm("old-api") });
             app
         }
         "6-done" => {

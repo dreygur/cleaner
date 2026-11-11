@@ -161,6 +161,34 @@ fn remove_one<W: Write + Send>(scope: &Scope, rule: &Rule, path: &Path, out: &Em
     }
 }
 
+/// One `--delete` stdin line: `rule<TAB>path`, or a bare path. Engine
+/// rules share one binary path, so only the rule id tells them apart.
+#[derive(Clone, Debug)]
+pub struct Request {
+    pub rule: Option<String>,
+    pub path: PathBuf,
+}
+
+impl Request {
+    pub fn parse(line: &str) -> Self {
+        match line.split_once('\t') {
+            Some((rule, path)) => Request { rule: Some(rule.to_string()), path: PathBuf::from(path) },
+            None => Request { rule: None, path: PathBuf::from(line) },
+        }
+    }
+}
+
+/// The rules a request may match: the named one only, or all of them.
+fn candidates<'r>(rules: &'r [Rule], rule: Option<&str>) -> &'r [Rule] {
+    let Some(id) = rule else {
+        return rules;
+    };
+    match rules.iter().position(|r| r.id == id) {
+        Some(i) => &rules[i..=i],
+        None => &[],
+    }
+}
+
 /// Deletes an explicit path list. Paths that no rule would have offered are
 /// refused before anything is touched. The rest run one rule group at a
 /// time, in rule order, with the group's paths in parallel. An interrupt
@@ -169,15 +197,16 @@ pub fn delete_json<W: Write + Send>(
     scope: &Scope,
     rules: &[Rule],
     keep: &[PathBuf],
-    paths: &[PathBuf],
+    requests: &[Request],
     free: impl Fn() -> u64,
     interrupted: &AtomicBool,
     out: &Emitter<W>,
 ) {
-    out.emit(&DeleteEvent::Started { free: free(), targets: paths.len() });
+    out.emit(&DeleteEvent::Started { free: free(), targets: requests.len() });
 
     let mut by_rule: Vec<(&Rule, Vec<&PathBuf>)> = rules.iter().map(|r| (r, Vec::new())).collect();
-    for p in paths {
+    for req in requests {
+        let p = &req.path;
         if std::fs::symlink_metadata(p).is_err_and(|e| e.kind() == io::ErrorKind::NotFound) {
             out.emit(&DeleteEvent::Failed {
                 rule: None,
@@ -187,7 +216,7 @@ pub fn delete_json<W: Write + Send>(
             });
             continue;
         }
-        match clean::resolve(rules, keep, p) {
+        match clean::resolve(candidates(rules, req.rule.as_deref()), keep, p) {
             Some(rule) => {
                 let slot = by_rule.iter_mut().find(|(r, _)| r.id == rule.id).unwrap();
                 slot.1.push(p);
@@ -290,7 +319,7 @@ mod tests {
         let rules = home_rules(home.path(), &roots);
         let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new(), temp: Vec::new() };
         let out = Emitter::new(Vec::new(), OnGone::Continue);
-        let paths = [good.clone(), stray.clone(), gone.clone()];
+        let paths = [&good, &stray, &gone].map(|p| Request { rule: None, path: p.clone() });
 
         delete_json(&scope, &rules, &[], &paths, || 1, &AtomicBool::new(false), &out);
         let got: Vec<DeleteEvent> = events(out.into_inner());
@@ -309,6 +338,54 @@ mod tests {
         assert!(matches!(got.last(), Some(DeleteEvent::Finished { freed: 3000, .. })));
     }
 
+    // Every engine rule targets the same CLI binary, so the path alone
+    // cannot say whether to prune cache, images or volumes.
+    #[test]
+    fn delete_json_runs_the_named_rule_on_a_shared_path() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let home = tempfile::tempdir().unwrap();
+        let log = home.path().join("log");
+        let bin = home.path().join("docker");
+        fs::write(&bin, format!("#!/bin/sh\necho \"$@\" >> {}\n", log.display())).unwrap();
+        fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let engine = |id, commands| Rule {
+            id,
+            description: "",
+            kind: Kind::Prune,
+            dir: "",
+            marker: "",
+            roots: Vec::new(),
+            prune: Vec::new(),
+            paths: vec![bin.clone()],
+            commands,
+            df: &[],
+            safety: crate::types::Safety::Safe,
+            regen: Regen::Run(""),
+        };
+        let rules = [engine("docker-cache", &[&["system", "prune", "-f"]]), engine("docker-images", &[&["image", "prune", "-af"]])];
+        let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new(), temp: Vec::new() };
+        let out = Emitter::new(Vec::new(), OnGone::Continue);
+        let requests = [Request::parse(&format!("docker-images\t{}", bin.display()))];
+
+        delete_json(&scope, &rules, &[], &requests, || 0, &AtomicBool::new(false), &out);
+        let got: Vec<DeleteEvent> = events(out.into_inner());
+
+        let log = fs::read_to_string(&log).unwrap();
+        let ran: Vec<&str> = log.lines().filter(|l| l.contains("prune")).collect();
+        assert_eq!(ran, ["image prune -af"]);
+        assert!(got.iter().any(|e| matches!(e, DeleteEvent::Removed { rule, .. } if rule == "docker-images")));
+    }
+
+    #[test]
+    fn request_parse_reads_optional_rule() {
+        let r = Request::parse("rust-target\t/a/target");
+        assert_eq!((r.rule.as_deref(), r.path.as_path()), (Some("rust-target"), Path::new("/a/target")));
+        let r = Request::parse("/a/target");
+        assert_eq!((r.rule, r.path), (None, PathBuf::from("/a/target")));
+    }
+
     #[test]
     fn delete_json_stops_before_the_next_group() {
         let home = tempfile::tempdir().unwrap();
@@ -318,7 +395,8 @@ mod tests {
         let scope = Scope { home: home.path().to_path_buf(), volumes: Vec::new(), temp: Vec::new() };
         let out = Emitter::new(Vec::new(), OnGone::Continue);
 
-        delete_json(&scope, &rules, &[], std::slice::from_ref(&target), || 0, &AtomicBool::new(true), &out);
+        let requests = [Request { rule: None, path: target.clone() }];
+        delete_json(&scope, &rules, &[], &requests, || 0, &AtomicBool::new(true), &out);
         let got: Vec<DeleteEvent> = events(out.into_inner());
 
         assert!(target.exists());
