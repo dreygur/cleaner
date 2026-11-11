@@ -3,7 +3,7 @@ members = [".", "ui"]
 
 [package]
 name = "cleaner"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 license = "MIT"
 description = "Disk reclaimer for macOS development machines"
